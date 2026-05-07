@@ -177,7 +177,6 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <span>Custo: <strong id="dCusto"></strong></span>
       <span style="color:var(--gr)">Margem: <strong id="dMargem"></strong></span>
     </div>
-    <!-- Botão adicionar ao carrinho -->
     <button class="btn bp" onclick="addCarrinho()" style="margin-top:14px">
       🛒 Adicionar ao carrinho
     </button>
@@ -310,7 +309,6 @@ var pgtoAtual = null;
 var parcelasAtual = 1;
 var vendas = [];
 
-// CARRINHO
 var carrinho = [];
 var cartPgto = null;
 var cartParcelas = 1;
@@ -341,6 +339,9 @@ function showAle(id, cls, msg) {
 }
 function hideAle(id){ document.getElementById(id).classList.remove('vis'); }
 
+// ════════════════════════════════════════
+// NOTION REQUEST — COM TRATAMENTO DE ERRO
+// ════════════════════════════════════════
 function nReq(method, path, body) {
   var opts = {
     method: method,
@@ -351,7 +352,19 @@ function nReq(method, path, body) {
     }
   };
   if (body) opts.body = JSON.stringify(body);
-  return fetch(PRXY+path, opts).then(function(r){ return r.json(); });
+  return fetch(PRXY+path, opts).then(function(r) {
+    return r.json().then(function(data) {
+      // Notion retorna {object:'error'} em caso de falha — lança o erro para ser capturado
+      if (data && data.object === 'error') {
+        var msg = '[Notion ' + (data.status||'err') + '] ' + (data.message||'Erro desconhecido') + (data.code ? ' ('+data.code+')' : '');
+        throw new Error(msg);
+      }
+      return data;
+    });
+  }).catch(function(e) {
+    // Re-lança qualquer erro (rede ou Notion)
+    throw e;
+  });
 }
 
 // ════════════════════════════════════════
@@ -360,7 +373,6 @@ function nReq(method, path, body) {
 async function buscar() {
   var raw = document.getElementById('idInput').value.trim().toUpperCase();
   if (!raw) return;
-  // Aceita "44", "VNL-44", "VNL44"
   var num = parseInt(raw.replace(/[^0-9]/g,''), 10);
   if (!num) { showAle('aV','ae','ID inválido. Digite só o número, ex: 44'); return; }
 
@@ -407,7 +419,6 @@ async function buscar() {
       return;
     }
 
-    // Capa
     var coverUrl = '';
     try {
       var imgs = p['Imagem da Capa'] && p['Imagem da Capa'].files;
@@ -423,7 +434,6 @@ async function buscar() {
       coverUrl:coverUrl, pageId:page.id
     };
 
-    // Renderiza cover
     var coverEl = document.getElementById('dCover');
     var coverPh = document.getElementById('dCoverPh');
     if (coverUrl) {
@@ -464,7 +474,7 @@ async function buscar() {
     setTimeout(function(){ document.getElementById('discoCard').scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
 
   } catch(e) {
-    showAle('aV','ae','Erro de conexão. Verifique o Safari/internet.');
+    showAle('aV','ae','Erro: '+e.message);
     hideAle('aVload');
   }
   document.getElementById('btnBuscar').disabled = false;
@@ -505,7 +515,7 @@ async function confirmar() {
   try {
     await registrarVenda([discoAtual], valor, pgtoAtual, parcelasAtual, 0);
     vendas.push({ artista:discoAtual.artista, album:discoAtual.album, valor:valor, pgto:pgtoAtual, coverUrl:discoAtual.coverUrl, custo:discoAtual.custo });
-    showAle('aVok','ao','✓ Venda registrada! '+discoAtual.artista+' — VNL: '+discoAtual.id);
+    showAle('aVok','ao','✓ Venda registrada! '+discoAtual.artista+' — '+discoAtual.id);
     hideAle('aVload');
     document.getElementById('discoCard').style.display = 'none';
     document.getElementById('pgtoCard').style.display = 'none';
@@ -584,7 +594,6 @@ function renderCartTotal() {
     document.getElementById('cartDescInfo').textContent = '';
     document.getElementById('cartDescPct').textContent = '';
   }
-  // Taxa crédito carrinho
   if (cartPgto === 'Cartão Crédito' && cartParcelas > 1) {
     var taxa = TAXAS[cartParcelas]||0;
     var totTaxa = total*(1+taxa/100);
@@ -651,28 +660,60 @@ async function fecharCarrinho() {
 }
 
 // ════════════════════════════════════════
-// REGISTRAR VENDA (disco único ou múltiplos)
+// REGISTRAR VENDA — COMPLETO COM NOTION
 // ════════════════════════════════════════
 async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
-  for (var i = 0; i < itens.length; i++) {
+  var hoje = new Date().toISOString().split('T')[0];
+  var totalItens = itens.length;
+
+  for (var i = 0; i < totalItens; i++) {
     var item = itens[i];
-    // 1. Marca disco como Vendido
-    await nReq('PATCH','pages/'+item.pageId, {
+
+    // 1. Marca disco como Vendido no Estoque
+    await nReq('PATCH', 'pages/'+item.pageId, {
       properties: { 'Status': { select: { name: 'Vendido' } } }
     });
-    // 2. Cria registro em Vendas
-    var valorItem = itens.length === 1 ? valorTotal : item.preco;
+
+    // 2. Calcula valor proporcional para cada disco do carrinho
+    // No carrinho múltiplo: cada disco tem seu preço individual; o desconto é abatido do total
+    // Para venda única: valorTotal já é o valor cobrado (pode ser diferente do preço)
+    var valorItem = totalItens === 1 ? valorTotal : item.preco;
+    var descontoItem = totalItens === 1 ? desconto : 0;
+    // Bruto = preço de tabela do disco
+    var valorBruto = item.preco;
+
+    // Observações: registra parcelas se crédito
+    var obs = '';
+    if (pgto === 'Cartão Crédito' && parcelas > 1) {
+      var taxa = TAXAS[parcelas] || 0;
+      obs = parcelas+'x | taxa '+taxa+'%';
+      if (totalItens > 1) obs += ' | lote c/ '+totalItens+' discos';
+    } else if (totalItens > 1) {
+      obs = 'Lote com '+totalItens+' discos';
+    }
+
+    // 3. Cria registro no banco Vendas
     var vProps = {
-      'Disco Vendido':      { title:  [{ text:{ content: item.artista+(item.album?' — '+item.album:'') } }] },
+      'Disco Vendido':      { title:  [{ text:{ content: item.artista + (item.album ? ' — '+item.album : '') + ' ('+item.id+')' } }] },
       'Disco (Estoque)':    { relation:[{ id: item.pageId }] },
+      'Valor Bruto':        { number: valorBruto },
       'Valor Recebido':     { number: valorItem },
-      'Desconto':           { number: itens.length === 1 ? desconto : 0 },
+      'Desconto':           { number: descontoItem },
       'Forma de Pagamento': { select: { name: pgto } },
-      'Data da Venda':      { date:   { start: new Date().toISOString().split('T')[0] } },
+      'Data da Venda':      { date:   { start: hoje } },
       'Canal':              { select: { name: 'Feira' } },
-      'Tipo de Operação':   { select: { name: 'Venda' } }
+      'Tipo de Operação':   { select: { name: 'Venda' } },
+      'Status Financeiro':  { select: { name: 'Recebido' } }
     };
-    await nReq('POST','pages', { parent:{ database_id: DB_V }, properties: vProps });
+    if (obs) vProps['Observações'] = { rich_text: [{ text:{ content: obs } }] };
+
+    var vendaResult = await nReq('POST', 'pages', {
+      parent: { database_id: DB_V },
+      properties: vProps
+    });
+
+    // Log de confirmação no console para debug
+    console.log('[PDV] Venda registrada:', item.id, '→ Notion page', vendaResult.id);
   }
 }
 
