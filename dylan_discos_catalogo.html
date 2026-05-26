@@ -105,8 +105,8 @@ async function loadSold(){
   try{
     const data = await notionReq(`/databases/${DB_ID}/query`, 'POST', {});
     data.results.forEach(p => {
-      const title   = p.properties.Name?.title?.[0]?.plain_text;
-      const vendido = p.properties.Vendido?.checkbox;
+      const title   = p.properties.Nome?.title?.[0]?.plain_text;
+      const vendido = p.properties.Vendido?.select?.name === 'Vendido';
       const id      = parseInt(title);
       if(!isNaN(id)){
         pageMap[id] = p.id;
@@ -127,13 +127,13 @@ async function saveSold(itemId, isSold){
   try{
     if(pageMap[itemId]){
       await notionReq(`/pages/${pageMap[itemId]}`, 'PATCH',
-        { properties: { Vendido: { checkbox: isSold } } });
+        { properties: { Vendido: { select: isSold ? { name: 'Vendido' } : null } } });
     } else {
       const res = await notionReq('/pages', 'POST', {
         parent: { database_id: DB_ID },
         properties: {
-          Name:    { title: [{ text: { content: String(itemId) } }] },
-          Vendido: { checkbox: isSold }
+          Nome:    { title: [{ text: { content: String(itemId) } }] },
+          Vendido: { select: isSold ? { name: 'Vendido' } : null }
         }
       });
       if(res.id) pageMap[itemId] = res.id;
