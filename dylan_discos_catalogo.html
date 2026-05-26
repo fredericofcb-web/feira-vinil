@@ -129,10 +129,12 @@ async function saveSold(itemId, isSold){
       await notionReq(`/pages/${pageMap[itemId]}`, 'PATCH',
         { properties: { Vendido: { select: isSold ? { name: 'Vendido' } : null } } });
     } else {
+      const disco = DATA.find(d => d.id === itemId);
+      const label = disco ? `${disco.artist} – ${disco.album}` : String(itemId);
       const res = await notionReq('/pages', 'POST', {
         parent: { database_id: DB_ID },
         properties: {
-          Nome:    { title: [{ text: { content: String(itemId) } }] },
+          Nome:    { title: [{ text: { content: label } }] },
           Vendido: { select: isSold ? { name: 'Vendido' } : null }
         }
       });
