@@ -135,7 +135,8 @@ async function saveSold(itemId, isSold){
         parent: { database_id: DB_ID },
         properties: {
           Nome:    { title: [{ text: { content: label } }] },
-          Vendido: { select: isSold ? { name: 'Vendido' } : null }
+          Vendido: { select: isSold ? { name: 'Vendido' } : null },
+          Preço:   { number: disco ? disco.price : null }
         }
       });
       if(res.id) pageMap[itemId] = res.id;
