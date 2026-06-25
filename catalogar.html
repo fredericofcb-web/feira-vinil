@@ -118,6 +118,16 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 @keyframes pd{0%,100%{opacity:1}50%{opacity:.3}}
 /* FOTO */
 .foto-card{background:var(--yeb);border:1px solid var(--yebd);border-radius:12px;padding:14px;margin-bottom:10px}
+/* DUPLICATA */
+.dup-card{background:var(--orb);border:1px solid var(--orbd);border-radius:12px;padding:14px;margin-bottom:10px}
+.dup-card .cl{color:var(--or)}
+.dup-item{display:flex;gap:10px;align-items:center;background:var(--bg3);border:1px solid var(--bor);border-radius:8px;padding:10px;margin-bottom:8px}
+.dup-cov{width:48px;height:48px;border-radius:5px;object-fit:cover;background:var(--bg2);flex-shrink:0}
+.dup-cov-ph{width:48px;height:48px;border-radius:5px;background:var(--bg2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--tx3)}
+.dup-info{flex:1;min-width:0}
+.dup-title{font-size:13px;font-weight:600}
+.dup-sub{font-size:11px;color:var(--tx2);margin-top:2px}
+.dup-vnl{font-size:11px;color:var(--or);font-weight:700;margin-top:2px}
 /* SAVE STICKY */
 .save{position:sticky;bottom:0;background:var(--bg);padding:10px 0 0;border-top:1px solid var(--bor)}
 /* SUCCESS */
@@ -306,6 +316,14 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     </div>
   </div>
 
+  <!-- ALERTA DE POSSÍVEL DUPLICATA -->
+  <div id="dupCard" class="dup-card" style="display:none">
+    <div class="cl">⚠️ Possível disco já cadastrado</div>
+    <p style="font-size:12px;color:var(--ye);margin-bottom:10px">Encontramos um ou mais discos parecidos no Estoque. Confira antes de salvar — pode ser etiqueta caída de um exemplar já cadastrado.</p>
+    <div id="dupList"></div>
+    <button class="btn bo" onclick="dismissDup()" style="margin-top:6px">Já verifiquei, é outro exemplar — continuar</button>
+  </div>
+
   <!-- LOTE -->
   <div class="lote-card">
     <div class="cl">📦 Lote</div>
@@ -317,8 +335,8 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <!-- IDENTIFICAÇÃO -->
   <div class="card">
     <div class="cl">Identificação</div>
-    <div class="fld"><label>Artista / Banda</label><input id="fArt" type="text" placeholder="Artista"/></div>
-    <div class="fld"><label>Álbum / Título</label><input id="fAlb" type="text" placeholder="Álbum"/></div>
+    <div class="fld"><label>Artista / Banda</label><input id="fArt" type="text" placeholder="Artista" onblur="checarDuplicata()"/></div>
+    <div class="fld"><label>Álbum / Título</label><input id="fAlb" type="text" placeholder="Álbum" onblur="checarDuplicata()"/></div>
     <div class="g3">
       <div class="fld"><label>Ano</label><input id="fAno" type="text" placeholder="1977" maxlength="4"/></div>
       <div class="fld"><label>Formato</label>
@@ -441,7 +459,6 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 </div>
 
 <script>
-var TK   = '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';
 var DB_E = 'f017299ec289407790e49194971ee03e';
 var DB_L = '078c0b6d1c0443aa9b90f3b385dafb11';
 var PRXY = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev/v1/';
@@ -453,9 +470,17 @@ var ST = {
   gen:'', ests:[], pb64:'', pm:'image/jpeg',
   vtxt:'', scn:null, rec:null, lst:false,
   coverUrl:'', selFoto:null, selBusca:null,
-  fotoResults:[], buscaResults:[]
+  fotoResults:[], buscaResults:[],
+  dupDismissed:false, dupCheckTimer:null
 };
 var lotesCache = [];
+
+// ═══ NOTION REQUEST (via Worker, sem token no front-end) ═══
+function nReq(method, path, body) {
+  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(PRXY+path, opts).then(function(r){ return r.json(); });
+}
 
 // ═══ NAVEGAÇÃO ═══
 function mostrar(nome) {
@@ -474,7 +499,7 @@ function voltar(de) {
 }
 function novoDisc() {
   var lote = ST.lote;
-  ST = {lote:lote,cD:'',cC:'',prop:'',loc:'',gen:'',ests:[],pb64:'',pm:'image/jpeg',vtxt:'',scn:null,rec:null,lst:false,coverUrl:'',selFoto:null,selBusca:null,fotoResults:[],buscaResults:[]};
+  ST = {lote:lote,cD:'',cC:'',prop:'',loc:'',gen:'',ests:[],pb64:'',pm:'image/jpeg',vtxt:'',scn:null,rec:null,lst:false,coverUrl:'',selFoto:null,selBusca:null,fotoResults:[],buscaResults:[],dupDismissed:false,dupCheckTimer:null};
   document.querySelectorAll('.ch,.gc,.sc').forEach(function(el){ el.className = el.className.replace(/\s(cg|cb|cp|cy|ct|co|cr|gs|gai|ss)/g,''); });
   seta('fotoPrev','');document.getElementById('fotoPrev').style.display='none';
   document.getElementById('fotoPlac').style.display='block';
@@ -483,6 +508,7 @@ function novoDisc() {
   document.getElementById('buscaRes').style.display='none';
   document.getElementById('aiBox').style.display='none';
   document.getElementById('discCard').style.display='none';
+  document.getElementById('dupCard').style.display='none';
   document.getElementById('gBadge').style.display='none';
   document.getElementById('sBadge').style.display='none';
   ['fArt','fAlb','fAno','fSelo','fNt','fCu','fPr2','fEstC','fArt2','fAlb2','fCat2','fAno2','fSelo2','bCatno','bQ','bArt','bAlb','bAno','bSelo','bCusto'].forEach(function(id){
@@ -522,6 +548,101 @@ function updM() {
   var c=parseFloat(document.getElementById('fCu').value)||0;
   var p=parseFloat(document.getElementById('fPr2').value)||0;
   document.getElementById('mInf').textContent = p>0 ? 'Margem: R$ '+(p-c).toFixed(2) : '';
+}
+
+// ═══════════════════════════════════════════════════════
+// DETECÇÃO DE DUPLICIDADE (item 2)
+// Dispara ao sair do campo Artista ou Álbum (onblur), com debounce.
+// Só alerta se Artista E Álbum baterem com um registro existente no Estoque.
+// ═══════════════════════════════════════════════════════
+function checarDuplicata() {
+  if (ST.dupCheckTimer) clearTimeout(ST.dupCheckTimer);
+  ST.dupCheckTimer = setTimeout(executarChecagemDuplicata, 400);
+}
+
+async function executarChecagemDuplicata() {
+  if (ST.dupDismissed) return; // usuário já confirmou que é outro exemplar nesta sessão de cadastro
+
+  var art = document.getElementById('fArt').value.trim();
+  var alb = document.getElementById('fAlb').value.trim();
+
+  // Só vale a pena buscar se tiver os dois campos com conteúdo mínimo
+  if (!art || !alb || art.length < 2 || alb.length < 2) {
+    document.getElementById('dupCard').style.display = 'none';
+    return;
+  }
+
+  try {
+    // Busca candidatos pelo título (artista) — depois filtra álbum localmente,
+    // já que o filtro de texto do Notion é "contains" e pode trazer falsos positivos.
+    var res = await nReq('POST', 'databases/'+DB_E+'/query', {
+      filter: {
+        property: 'Título/Artista/Banda',
+        title: { contains: art }
+      },
+      page_size: 20
+    });
+
+    if (!res.results || !res.results.length) {
+      document.getElementById('dupCard').style.display = 'none';
+      return;
+    }
+
+    var albNorm = norm(alb);
+    var matches = res.results.filter(function(page) {
+      var p = page.properties;
+      var albExist = '';
+      try { albExist = p['Álbum'].rich_text[0].plain_text; } catch(e) {}
+      return albExist && norm(albExist) === albNorm;
+    });
+
+    if (!matches.length) {
+      document.getElementById('dupCard').style.display = 'none';
+      return;
+    }
+
+    renderDuplicatas(matches);
+
+  } catch(e) {
+    // Falha silenciosa: não bloqueia o cadastro se a checagem de duplicidade falhar
+    console.warn('Checagem de duplicidade falhou:', e);
+  }
+}
+
+function renderDuplicatas(matches) {
+  var html = '';
+  matches.forEach(function(page) {
+    var p = page.properties;
+    function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
+    function gr(f){ try{ return p[f].rich_text[0].plain_text; }catch(e){ return ''; } }
+    function gs(f){ try{ return p[f].select.name; }catch(e){ return '—'; } }
+    function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
+    function gcod(){ try{ return 'VNL-'+p['Código'].unique_id.number; }catch(e){ return '?'; } }
+
+    var cover = '';
+    try {
+      var imgs = p['Imagem da Capa'] && p['Imagem da Capa'].files;
+      if (imgs && imgs.length) cover = imgs[0].type === 'external' ? imgs[0].external.url : (imgs[0].file ? imgs[0].file.url : '');
+    } catch(e) {}
+
+    var covHtml = cover
+      ? '<img class="dup-cov" src="'+esc(cover)+'" onerror="this.style.display=\'none\'">'
+      : '<div class="dup-cov-ph">🎵</div>';
+
+    html += '<div class="dup-item">'+covHtml+
+      '<div class="dup-info">'+
+        '<div class="dup-title">'+esc(gt('Título/Artista/Banda'))+' — '+esc(gr('Álbum'))+'</div>'+
+        '<div class="dup-sub">'+esc(gs('Status'))+' · Condição: '+esc(gs('Condição DISCO'))+' · Preço: R$ '+gn('Preço Final').toFixed(2)+'</div>'+
+        '<div class="dup-vnl">'+gcod()+'</div>'+
+      '</div></div>';
+  });
+  document.getElementById('dupList').innerHTML = html;
+  document.getElementById('dupCard').style.display = 'block';
+}
+
+function dismissDup() {
+  ST.dupDismissed = true;
+  document.getElementById('dupCard').style.display = 'none';
 }
 
 // ═══ CHIPS ═══
@@ -584,10 +705,7 @@ async function carregarLotes() {
   sel.innerHTML='<option value="">⏳ Carregando...</option>';
   info.textContent='';
   try {
-    var r=await fetch(PRXY+'databases/'+DB_L+'/query',{method:'POST',
-      headers:{'Authorization':'Bearer '+TK,'Notion-Version':'2022-06-28','Content-Type':'application/json'},
-      body:JSON.stringify({page_size:50})});
-    var d=await r.json();
+    var d = await nReq('POST', 'databases/'+DB_L+'/query', { page_size:50 });
     if(d.results&&d.results.length>0){
       lotesCache=d.results.map(function(p){
         var nome='';
@@ -600,13 +718,11 @@ async function carregarLotes() {
       });
       info.textContent='✓ '+lotesCache.length+' lote(s)';
     } else if(d.status===403||d.code==='restricted_resource'){
-      // Sem permissão: usa lista hardcoded
       preencherLotesFixos(sel, info);
     } else {
       preencherLotesFixos(sel, info);
     }
   } catch(e) {
-    // API falhou: usa lista hardcoded
     preencherLotesFixos(sel, info);
   }
 }
@@ -684,7 +800,6 @@ function pararScanner() {
 
 function goScan() {
   mostrar('scan');
-  // Reset estado do scanner
   document.getElementById('btnStartScan').style.display='block';
   document.getElementById('scan-wrap').style.display='none';
   document.getElementById('btnStopScan').style.display='none';
@@ -695,15 +810,12 @@ async function buscarEAN(ean) {
   if(ST.scn){ ST.scn.stop().catch(function(){}); ST.scn=null; }
   alert_('aS','al','Buscando: '+ean+'...',true);
   try {
-    // Tenta barcode primeiro
     var r=await fetch('https://api.discogs.com/database/search?barcode='+encodeURIComponent(ean)+'&token='+DISC+'&per_page=5');
     var d=await r.json();
     if(d.results&&d.results.length>0){ await loadRelease(d.results[0].id,d.results[0]); return; }
-    // Se não achou por barcode, tenta como catálogo
     var r2=await fetch('https://api.discogs.com/database/search?catno='+encodeURIComponent(ean)+'&token='+DISC+'&per_page=5');
     var d2=await r2.json();
     if(d2.results&&d2.results.length>0){ await loadRelease(d2.results[0].id,d2.results[0]); return; }
-    // Último fallback: busca livre
     var r3=await fetch('https://api.discogs.com/database/search?q='+encodeURIComponent(ean)+'&token='+DISC+'&per_page=5');
     var d3=await r3.json();
     if(d3.results&&d3.results.length>0){ await loadRelease(d3.results[0].id,d3.results[0]); return; }
@@ -714,14 +826,12 @@ async function buscarEAN(ean) {
 
 // ═══ DISCOGS ═══
 async function loadRelease(id, basic) {
-  // Usa dados básicos da busca imediatamente — sem esperar API
   fillDiscogs(null, basic, id);
 }
 function fillDiscogs(rel, basic, relId) {
   var art = rel ? (rel.artists&&rel.artists[0] ? rel.artists[0].name.replace(/\s*\(\d+\)$/,'') : '') : (basic&&basic.title ? basic.title.split(' - ')[0] : '');
   var alb = rel ? rel.title : (basic&&basic.title ? basic.title.split(' - ').slice(1).join(' - ') : '');
   var ano = rel ? String(rel.year||'') : (basic&&basic.year ? String(basic.year) : '');
-  // Selo: tenta rel primeiro, depois basic.label (pode ser array)
   var selo = '';
   if(rel && rel.labels && rel.labels[0]) { selo = rel.labels[0].name||''; }
   else if(basic && basic.label) { selo = Array.isArray(basic.label) ? (basic.label[0]||'') : String(basic.label||''); }
@@ -738,14 +848,12 @@ function fillDiscogs(rel, basic, relId) {
   if(catK) setSel('fCat',catM[catK]);
   var pM={'US':'EUA','USA':'EUA','UK':'Reino Unido','UK & Europe':'Reino Unido','Brazil':'Brasil','Japan':'Japão','Argentina':'Argentina'};
   setSel('fOr', pM[pais]||(pais?'Outro':'EUA'));
-  // Card Discogs
   document.getElementById('discCard').style.display='flex';
   var dt=document.getElementById('dThumb');
   if(cov){dt.src=cov;dt.style.display='block';}else dt.style.display='none';
   document.getElementById('dTitle').textContent = art+(alb?' — '+alb:'');
   document.getElementById('dSub').textContent = (ano?ano+' · ':'')+selo+(pais?' · '+pais:'');
   document.getElementById('dLink').href = 'https://www.discogs.com/release/'+relId;
-  // Gênero/estilo
   var gM={'Rock':'Rock','Pop':'Pop','Jazz':'Jazz','Blues':'Blues','Funk / Soul':'Soul/Funk','Electronic':'Eletrônico','Classical':'Clássico','Reggae':'Reggae','Country':'Country','Soul':'Soul/Funk','Soundtrack':'Outro'};
   if(gens.length>0) setGai(gM[gens[0]]||gens[0]);
   if(stls.length>0) setSai(stls.slice(0,4));
@@ -753,6 +861,8 @@ function fillDiscogs(rel, basic, relId) {
   document.getElementById('formSrc').textContent = 'Discogs #'+relId;
   document.getElementById('aiBox').style.display='none';
   applyLote(); mostrar('form');
+  ST.dupDismissed = false;
+  checarDuplicata();
 }
 async function discogsSearch(q, n, fx) {
   n=n||8; fx=fx||{};
@@ -765,22 +875,18 @@ async function discogsSearch(q, n, fx) {
     return u;
   }
   try {
-    // Tentativa 1: query + todos os filtros
     var r=await fetch(url(q,fx));
     var d=await r.json();
     if(d.results&&d.results.length>0) return d.results;
-    // Tentativa 2: query sem ano (ano pode estar errado)
     if(fx.year||fx.label||fx.country){
       var fx2={label:fx.label,country:fx.country};
       var r2=await fetch(url(q,fx2));
       var d2=await r2.json();
       if(d2.results&&d2.results.length>0) return d2.results;
     }
-    // Tentativa 3: query pura sem filtros
     var r3=await fetch(url(q,{}));
     var d3=await r3.json();
     if(d3.results&&d3.results.length>0) return d3.results;
-    // Tentativa 4: 2 primeiras palavras
     var w=norm(q).split(' ').filter(Boolean);
     if(w.length>2){
       var r4=await fetch(url(w.slice(0,2).join(' '),{}));
@@ -817,7 +923,6 @@ async function buscaFoto() {
   if(!catno&&!art&&!alb){ alert_('aF','ae','Digite o nº de catálogo, artista ou álbum!'); return; }
   alert_('aF','al','Buscando no Discogs...',true);
   var res=[];
-  // Prioridade 1: catálogo (mais preciso)
   if(catno){
     try{
       var rc=await fetch('https://api.discogs.com/database/search?catno='+encodeURIComponent(catno)+'&token='+DISC+'&per_page=8');
@@ -825,7 +930,6 @@ async function buscaFoto() {
       if(dc.results&&dc.results.length>0) res=dc.results;
     }catch(e){}
   }
-  // Fallback: artista + álbum + filtros
   if(!res.length){
     var fx2={label:fSelo2,country:fPais2,year:fAno2};
     var q=[art,alb].filter(Boolean).join(' ');
@@ -854,7 +958,6 @@ async function executarBusca() {
   var bAno=document.getElementById('bAno').value.trim();
   var bCat=document.getElementById('bCat').value;
   var fx={label:bSelo,country:bPais,year:bAno,format:bCat};
-  // Se tem catálogo, busca direto por catno (mais preciso)
   if(bCatno){
     try{
       var rc2=await fetch('https://api.discogs.com/database/search?catno='+encodeURIComponent(bCatno)+'&token='+DISC+'&per_page=8');
@@ -920,14 +1023,12 @@ function mostrarResultados(results, query, tipo) {
   document.getElementById(resId).style.display='block';
   setTimeout(function(){ document.getElementById(resId).scrollIntoView({behavior:'smooth',block:'start'}); },100);
 
-  // Auto-seleciona se só 1 resultado
   if(top.length===1){
     var el=document.getElementById(listId).querySelector('.ri');
     if(el) window[fnSel](el,0);
   }
 }
 
-// Funções de seleção separadas (sem parâmetros complexos no onclick)
 function selFotoItem(el,idx) {
   document.querySelectorAll('#fotoResList .ri').forEach(function(e){ e.classList.remove('sel'); });
   el.classList.add('sel');
@@ -977,7 +1078,6 @@ async function processarVoz() {
   var res=await discogsSearch(ST.vtxt,8);
   hideAlert('aV');
   if(res.length){
-    // Vai para busca ANTES de mostrar resultados
     goBusca();
     ST.buscaResults=res;
     mostrarResultados(res,ST.vtxt,'busca');
@@ -1009,6 +1109,8 @@ function fillAI(ai,src) {
   }
   document.getElementById('formSrc').textContent=src;
   applyLote(); mostrar('form'); updM();
+  ST.dupDismissed = false;
+  checarDuplicata();
 }
 
 // ═══ SALVAR ═══
@@ -1017,6 +1119,14 @@ async function salvar() {
   if(!art){ alert_('aForm','ae','⚠️ Preencha o artista!'); return; }
   if(!ST.cD){ alert_('aForm','ae','⚠️ Selecione a condição do disco!'); return; }
   if(!ST.loc){ alert_('aForm','ae','⚠️ Selecione a localização!'); return; }
+
+  // Última checagem de segurança: se ainda há um alerta de duplicata visível e não dispensado, avisa antes de salvar
+  if (document.getElementById('dupCard').style.display === 'block' && !ST.dupDismissed) {
+    alert_('aForm','ae','⚠️ Verifique o alerta de possível duplicata acima antes de salvar.');
+    document.getElementById('dupCard').scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+
   var btn=document.getElementById('btnSave');
   btn.disabled=true; btn.textContent='⏳ Salvando...';
   try {
@@ -1052,15 +1162,12 @@ async function salvar() {
     if(ST.coverUrl) props['Imagem da Capa']={files:[{type:'external',name:'capa.jpg',external:{url:ST.coverUrl}}]};
     if(notes) props['Notes']={rich_text:[{text:{content:notes.substring(0,1990)}}]};
     if(selo && selo.trim()){
-      var seloNome=selo.trim().substring(0,100); // Notion limita tamanho
+      var seloNome=selo.trim().substring(0,100);
       props['Selo']={multi_select:[{name:seloNome}]};
     }
     if(todos.length) props['Estilo']={multi_select:todos.map(function(e){return{name:e};})};
     if(loteId) props['Lote']={relation:[{id:loteId}]};
-    var r=await fetch(PRXY+'pages',{method:'POST',
-      headers:{'Authorization':'Bearer '+TK,'Notion-Version':'2022-06-28','Content-Type':'application/json'},
-      body:JSON.stringify({parent:{database_id:DB_E},properties:props})});
-    var data=await r.json();
+    var data = await nReq('POST', 'pages', { parent:{database_id:DB_E}, properties:props });
     if(data.id){
       var cod=data.properties&&data.properties['Código']&&data.properties['Código'].unique_id;
       document.getElementById('sucSub').textContent=art+(alb?' — '+alb:'')+' salvo!';
@@ -1077,10 +1184,7 @@ async function salvar() {
 // ═══ LOTES HARDCODED (fallback quando API não tem permissão) ═══
 var LOTES_FIXOS = [
   {id:'341a6605-a4aa-8080-8ad8-d923a412227c', nome:'Lote 1 - Soundtracks'}
-  // Adicione outros lotes aqui se criar novos
 ];
-
-// ════ HUGGING FACE ════
 
 // Inicializa
 carregarLotes();
