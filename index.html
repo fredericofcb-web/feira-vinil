@@ -75,6 +75,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 .badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:12px;font-weight:600;margin-top:5px}
 .badge-gr{background:var(--grb);color:var(--gr);border:1px solid var(--grbd)}
 .badge-ye{background:var(--yeb);color:var(--ye);border:1px solid var(--yebd)}
+.badge-pu{background:var(--pub);color:var(--pu);border:1px solid var(--pubd)}
 .row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--bor);font-size:13px}
 .row:last-child{border:none}
 .rk{color:var(--tx2)}
@@ -133,6 +134,15 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 
 /* SUCCESS */
 .suc{text-align:center;padding:30px 14px}
+
+/* PNC */
+.pnc-link{display:block;text-align:center;background:transparent;border:none;color:var(--pu);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;padding:10px;width:100%}
+.pnc-photo-wrap{text-align:center;padding:8px 0 14px}
+.pnc-photo-prev{width:100%;max-height:200px;object-fit:contain;border-radius:8px;display:none;margin-bottom:10px;background:var(--bg3)}
+.pnc-photo-placeholder{padding:20px 0;color:var(--tx3);font-size:13px}
+.sel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.sel-btn{background:var(--bg3);border:1px solid var(--bor);border-radius:8px;color:var(--tx2);font-size:14px;font-weight:600;padding:12px 8px;cursor:pointer;text-align:center;font-family:inherit}
+.sel-btn.sel{background:var(--pub);border-color:var(--pu);color:var(--pu)}
 </style>
 </head>
 <body>
@@ -166,6 +176,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
         <div class="disco-artista" id="dArtista"></div>
         <div class="disco-album" id="dAlbum"></div>
         <span class="badge" id="dBadge">Disponível</span>
+        <span class="badge badge-pu" id="dOrigem" style="display:none"></span>
       </div>
     </div>
     <div class="row"><span class="rk">ID</span><span class="rv" id="dId"></span></div>
@@ -211,6 +222,50 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     </div>
     <hr style="border:none;border-top:1px solid var(--bor);margin:12px 0"/>
     <button class="btn bg" id="btnConfirmar" onclick="confirmar()">✓ Confirmar venda</button>
+  </div>
+
+  <!-- LINK PNC -->
+  <button class="pnc-link" onclick="abrirPnc()">📦 Produto não cadastrado (PNC) — venda sem ficha</button>
+
+  <!-- ══ PNC CARD ══ -->
+  <div class="card" id="pncCard" style="display:none">
+    <div class="cl" style="color:var(--pu)">📦 Venda rápida — Produto não cadastrado</div>
+
+    <div class="pnc-photo-wrap">
+      <img id="pncPhotoPrev" class="pnc-photo-prev"/>
+      <div id="pncPhotoPlaceholder" class="pnc-photo-placeholder">📷 Sem foto ainda (opcional, mas recomendado)</div>
+      <input type="file" id="pncPhotoInput" accept="image/*" capture="environment" style="display:none" onchange="handlePncFoto(this)"/>
+      <button class="btn bo" onclick="document.getElementById('pncPhotoInput').click()">📷 Tirar foto do disco</button>
+    </div>
+
+    <div class="cl">Descrição / referência</div>
+    <input class="inp" id="pncDesc" type="text" placeholder="Ex: Caixa promoção — Beatles?" style="margin-bottom:12px"/>
+
+    <div class="cl">Origem</div>
+    <div class="sel-grid">
+      <button class="sel-btn" onclick="selPncOrigem('Meu',this)">Meu</button>
+      <button class="sel-btn" onclick="selPncOrigem('Pai',this)">Pai</button>
+      <button class="sel-btn" onclick="selPncOrigem('Sociedade',this)">Sociedade</button>
+      <button class="sel-btn" onclick="selPncOrigem('Consignado',this)">Consignado</button>
+    </div>
+
+    <div class="cl">Valor cobrado</div>
+    <div class="valor-wrap">
+      <span class="valor-pre">R$</span>
+      <input class="valor-inp" id="pncValor" type="number" placeholder="0,00" step="0.50" min="0" inputmode="decimal"/>
+    </div>
+
+    <div class="cl" style="margin-bottom:8px">Forma de pagamento</div>
+    <div class="pgto-grid">
+      <button class="pgto-btn" onclick="selPncPgto('Dinheiro',this)">💵 Dinheiro</button>
+      <button class="pgto-btn" onclick="selPncPgto('PIX',this)">⚡ Pix</button>
+      <button class="pgto-btn" onclick="selPncPgto('Cartão Débito',this)">💳 Débito</button>
+      <button class="pgto-btn" onclick="selPncPgto('Cartão Crédito',this)">💳 Crédito</button>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--bor);margin:12px 0"/>
+    <button class="btn bp" id="btnConfirmarPnc" onclick="confirmarPnc()">✓ Confirmar venda PNC</button>
+    <button class="btn bo" onclick="fecharPnc()" style="margin-top:8px">Cancelar</button>
   </div>
 
   <!-- CARRINHO -->
@@ -295,7 +350,6 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 // ════════════════════════════════════════
 // CONFIG
 // ════════════════════════════════════════
-var TK   = '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';
 var DB_E = 'f017299ec289407790e49194971ee03e';
 var DB_V = '9a61fa415c264375a58ed49cc699cad0';
 var PRXY = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev/v1/';
@@ -312,6 +366,11 @@ var vendas = [];
 var carrinho = [];
 var cartPgto = null;
 var cartParcelas = 1;
+
+var pncFotoBase64 = null;
+var pncFotoMime = null;
+var pncOrigem = null;
+var pncPgto = null;
 
 // ════════════════════════════════════════
 // NAV
@@ -346,8 +405,6 @@ function nReq(method, path, body) {
   var opts = {
     method: method,
     headers: {
-      'Authorization': 'Bearer '+TK,
-      'Notion-Version': '2022-06-28',
       'Content-Type': 'application/json'
     }
   };
@@ -411,6 +468,7 @@ async function buscar() {
     var condicao = gs('Condição DISCO');
     var local    = gms('Localização');
     var cat      = gs('Categoria');
+    var origem   = gs('Origem / Propriedade');
 
     if (status === 'Vendido') {
       showAle('aV','ae','VNL-'+num+' já foi vendido.');
@@ -430,7 +488,7 @@ async function buscar() {
     discoAtual = {
       id:'VNL-'+num, artista:artista, album:album,
       preco:preco, custo:custo, status:status,
-      condicao:condicao, local:local, cat:cat,
+      condicao:condicao, local:local, cat:cat, origem:origem,
       coverUrl:coverUrl, pageId:page.id
     };
 
@@ -458,6 +516,14 @@ async function buscar() {
     var badge = document.getElementById('dBadge');
     badge.className = 'badge '+(status === 'Reservado' ? 'badge-ye' : 'badge-gr');
     badge.textContent = status || 'Disponível';
+
+    var origemBadge = document.getElementById('dOrigem');
+    if (origem && origem !== '—') {
+      origemBadge.textContent = origem;
+      origemBadge.style.display = 'inline-block';
+    } else {
+      origemBadge.style.display = 'none';
+    }
 
     document.getElementById('valorFinal').value = preco.toFixed(2);
     pgtoAtual = null; parcelasAtual = 1;
@@ -657,6 +723,112 @@ async function fecharCarrinho() {
     hideAle('aVload');
   }
   document.getElementById('btnFecharCart').disabled = false;
+}
+
+// ════════════════════════════════════════
+// PNC — PRODUTO NÃO CADASTRADO
+// ════════════════════════════════════════
+function abrirPnc() {
+  document.getElementById('pncCard').style.display = 'block';
+  document.getElementById('discoCard').style.display = 'none';
+  document.getElementById('pgtoCard').style.display = 'none';
+  setTimeout(function(){ document.getElementById('pncCard').scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
+}
+function fecharPnc() {
+  document.getElementById('pncCard').style.display = 'none';
+  pncFotoBase64 = null; pncFotoMime = null; pncOrigem = null; pncPgto = null;
+  document.getElementById('pncPhotoPrev').style.display = 'none';
+  document.getElementById('pncPhotoPlaceholder').style.display = 'block';
+  document.getElementById('pncDesc').value = '';
+  document.getElementById('pncValor').value = '';
+  document.querySelectorAll('#pncCard .sel-btn').forEach(function(b){ b.classList.remove('sel'); });
+  document.querySelectorAll('#pncCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+}
+function handlePncFoto(input) {
+  var file = input.files[0];
+  if (!file) return;
+  pncFotoMime = file.type || 'image/jpeg';
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    pncFotoBase64 = dataUrl.split(',')[1];
+    var prev = document.getElementById('pncPhotoPrev');
+    prev.src = dataUrl;
+    prev.style.display = 'block';
+    document.getElementById('pncPhotoPlaceholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+function selPncOrigem(origem, btn) {
+  pncOrigem = origem;
+  document.querySelectorAll('#pncCard .sel-btn').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+}
+function selPncPgto(tipo, btn) {
+  pncPgto = tipo;
+  document.querySelectorAll('#pncCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+}
+async function confirmarPnc() {
+  var valor = parseFloat(document.getElementById('pncValor').value);
+  var desc = document.getElementById('pncDesc').value.trim();
+  if (!valor || valor <= 0) { showAle('aV','ae','Informe o valor cobrado.'); return; }
+  if (!pncOrigem) { showAle('aV','ae','Selecione a origem (Meu/Pai/Sociedade/Consignado).'); return; }
+  if (!pncPgto) { showAle('aV','ae','Selecione a forma de pagamento.'); return; }
+
+  document.getElementById('btnConfirmarPnc').disabled = true;
+  showAle('aVload','al','Registrando venda PNC...');
+
+  try {
+    var fileUploadId = null;
+    if (pncFotoBase64) {
+      showAle('aVload','al','Enviando foto...');
+      var upRes = await fetch(PRXY+'upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64: pncFotoBase64, filename: 'pnc-'+Date.now()+'.jpg', mime: pncFotoMime })
+      });
+      var upData = await upRes.json();
+      if (upData.file_upload_id) fileUploadId = upData.file_upload_id;
+      else console.warn('Upload de foto falhou, seguindo sem foto:', upData);
+    }
+
+    showAle('aVload','al','Registrando venda...');
+    var hoje = new Date().toISOString().split('T')[0];
+    var titulo = 'PNC — ' + (desc || 'Produto não cadastrado');
+
+    var vProps = {
+      'Disco Vendido':      { title: [{ text:{ content: titulo } }] },
+      'Valor Bruto':        { number: valor },
+      'Valor Recebido':     { number: valor },
+      'Desconto':           { number: 0 },
+      'Forma de Pagamento': { select: { name: pncPgto } },
+      'Data da Venda':      { date: { start: hoje } },
+      'Canal':              { select: { name: 'Feira' } },
+      'Tipo de Operação':   { select: { name: 'Venda' } },
+      'Status Financeiro':  { select: { name: 'Recebido' } },
+      'Origem / Propriedade': { select: { name: pncOrigem } },
+      'Observações':        { rich_text: [{ text:{ content: 'PNC' + (desc ? ' — '+desc : '') } }] }
+    };
+    if (fileUploadId) {
+      vProps['Imagem PNC'] = { files: [{ type: 'file_upload', file_upload: { id: fileUploadId } }] };
+    }
+
+    var vendaResult = await nReq('POST', 'pages', {
+      parent: { database_id: DB_V },
+      properties: vProps
+    });
+
+    vendas.push({ artista: titulo, album: desc, valor: valor, pgto: pncPgto, coverUrl: '', custo: 0 });
+    showAle('aVok','ao','✓ Venda PNC registrada! '+fmt(valor));
+    hideAle('aVload');
+    fecharPnc();
+
+  } catch(e) {
+    showAle('aV','ae','Erro ao registrar PNC: '+e.message);
+    hideAle('aVload');
+  }
+  document.getElementById('btnConfirmarPnc').disabled = false;
 }
 
 // ════════════════════════════════════════
