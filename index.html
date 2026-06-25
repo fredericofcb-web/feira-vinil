@@ -255,16 +255,23 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <input class="valor-inp" id="pncValor" type="number" placeholder="0,00" step="0.50" min="0" inputmode="decimal"/>
     </div>
 
-    <div class="cl" style="margin-bottom:8px">Forma de pagamento</div>
-    <div class="pgto-grid">
-      <button class="pgto-btn" onclick="selPncPgto('Dinheiro',this)">💵 Dinheiro</button>
-      <button class="pgto-btn" onclick="selPncPgto('PIX',this)">⚡ Pix</button>
-      <button class="pgto-btn" onclick="selPncPgto('Cartão Débito',this)">💳 Débito</button>
-      <button class="pgto-btn" onclick="selPncPgto('Cartão Crédito',this)">💳 Crédito</button>
+    <hr style="border:none;border-top:1px solid var(--bor);margin:12px 0"/>
+    <button class="btn bp" id="btnAddPncCart" onclick="addPncAoCarrinho()">🛒 Adicionar ao carrinho</button>
+    <div style="font-size:11px;color:var(--tx3);text-align:center;margin:8px 0">Use isso quando o PNC faz parte de uma venda com outros discos. Depois feche tudo junto no carrinho.</div>
+
+    <button onclick="toggleVendaDiretaPnc()" style="background:transparent;border:none;color:var(--tx3);font-size:12px;cursor:pointer;font-family:inherit;width:100%;padding:6px;margin-top:4px">— ou registrar este PNC sozinho, sem carrinho —</button>
+
+    <div id="pncVendaDireta" style="display:none;margin-top:8px">
+      <div class="cl" style="margin-bottom:8px">Forma de pagamento</div>
+      <div class="pgto-grid">
+        <button class="pgto-btn" onclick="selPncPgto('Dinheiro',this)">💵 Dinheiro</button>
+        <button class="pgto-btn" onclick="selPncPgto('PIX',this)">⚡ Pix</button>
+        <button class="pgto-btn" onclick="selPncPgto('Cartão Débito',this)">💳 Débito</button>
+        <button class="pgto-btn" onclick="selPncPgto('Cartão Crédito',this)">💳 Crédito</button>
+      </div>
+      <button class="btn bo" id="btnConfirmarPnc" onclick="confirmarPnc()" style="margin-top:10px">✓ Confirmar venda PNC isolada</button>
     </div>
 
-    <hr style="border:none;border-top:1px solid var(--bor);margin:12px 0"/>
-    <button class="btn bp" id="btnConfirmarPnc" onclick="confirmarPnc()">✓ Confirmar venda PNC</button>
     <button class="btn bo" onclick="fecharPnc()" style="margin-top:8px">Cancelar</button>
   </div>
 
@@ -613,6 +620,7 @@ function addCarrinho() {
 
   var preco = parseFloat(document.getElementById('valorFinal').value) || discoAtual.preco;
   carrinho.push({
+    tipo:     'cadastrado',
     pageId:   discoAtual.pageId,
     artista:  discoAtual.artista,
     album:    discoAtual.album,
@@ -639,14 +647,16 @@ function renderCarrinho() {
 
   var html = '';
   carrinho.forEach(function(item, idx) {
+    var isPnc = item.tipo === 'pnc';
     var covHtml = item.coverUrl
       ? '<img class="cart-cover" src="'+item.coverUrl+'" onerror="this.style.display=\'none\'">'
-      : '<div class="cart-cover-ph">🎵</div>';
+      : '<div class="cart-cover-ph">'+(isPnc ? '📦' : '🎵')+'</div>';
+    var subLabel = isPnc ? ('PNC · '+esc(item.origem)+(item.desc ? ' · '+esc(item.desc) : '')) : esc(item.album||item.id);
     html += '<div class="cart-item">'+
       covHtml+
       '<div class="cart-info">'+
         '<div class="cart-art">'+esc(item.artista)+'</div>'+
-        '<div class="cart-alb">'+esc(item.album||item.id)+'</div>'+
+        '<div class="cart-alb">'+subLabel+'</div>'+
       '</div>'+
       '<div class="cart-preco">'+fmt(item.preco)+'</div>'+
       '<button class="cart-del" onclick="removerCart('+idx+')">×</button>'+
@@ -750,8 +760,13 @@ function fecharPnc() {
   document.getElementById('pncPhotoPlaceholder').style.display = 'block';
   document.getElementById('pncDesc').value = '';
   document.getElementById('pncValor').value = '';
+  document.getElementById('pncVendaDireta').style.display = 'none';
   document.querySelectorAll('#pncCard .sel-btn').forEach(function(b){ b.classList.remove('sel'); });
   document.querySelectorAll('#pncCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+}
+function toggleVendaDiretaPnc() {
+  var el = document.getElementById('pncVendaDireta');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 function handlePncFoto(input) {
   var file = input.files[0];
@@ -777,6 +792,32 @@ function selPncPgto(tipo, btn) {
   pncPgto = tipo;
   document.querySelectorAll('#pncCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
+}
+function addPncAoCarrinho() {
+  var valor = parseFloat(document.getElementById('pncValor').value);
+  var desc = document.getElementById('pncDesc').value.trim();
+  if (!valor || valor <= 0) { showAle('aV','ae','Informe o valor cobrado.'); return; }
+  if (!pncOrigem) { showAle('aV','ae','Selecione a origem (Meu/Pai/Sociedade/Consignado).'); return; }
+
+  carrinho.push({
+    tipo: 'pnc',
+    pageId: null,
+    artista: 'PNC — ' + (desc || 'Produto não cadastrado'),
+    album: desc,
+    id: 'PNC',
+    preco: valor,
+    custo: 0,
+    coverUrl: '',
+    origem: pncOrigem,
+    fotoBase64: pncFotoBase64,
+    fotoMime: pncFotoMime,
+    desc: desc
+  });
+
+  showAle('aVok','ao','✓ PNC adicionado ao carrinho! Pode buscar outro disco ou fechar a venda.');
+  fecharPnc();
+  renderCarrinho();
+  atualizaBadge();
 }
 async function confirmarPnc() {
   var valor = parseFloat(document.getElementById('pncValor').value);
@@ -847,25 +888,28 @@ async function confirmarPnc() {
 async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
   var hoje = new Date().toISOString().split('T')[0];
   var totalItens = itens.length;
-  // ID de transação: mesmo valor para todos os discos de uma mesma compra (carrinho ou venda única).
-  // Permite agrupar no Notion depois sem perder o registro individual por disco.
+  // ID de transação: mesmo valor para todos os itens de uma mesma compra (carrinho ou venda única),
+  // incluindo discos cadastrados e PNCs juntos. Permite agrupar no Notion sem perder o registro individual.
   var txnId = 'TXN-' + Date.now();
 
-  // Soma bruta de todos os itens — usada para ratear o desconto proporcionalmente em vendas de carrinho
+  // Soma bruta de todos os itens (cadastrados + PNC) — usada para ratear o desconto proporcionalmente
   var somaBrutoCarrinho = itens.reduce(function(s, it){ return s + it.preco; }, 0);
   var descontoAcumulado = 0; // soma do desconto já distribuído, para o último item absorver a diferença de centavos
 
   for (var i = 0; i < totalItens; i++) {
     var item = itens[i];
+    var isPnc = item.tipo === 'pnc';
 
-    // 1. Marca disco como Vendido no Estoque
-    await nReq('PATCH', 'pages/'+item.pageId, {
-      properties: { 'Status': { select: { name: 'Vendido' } } }
-    });
+    // 1. Marca disco como Vendido no Estoque — só aplica a itens cadastrados (PNC não tem página de Estoque)
+    if (!isPnc) {
+      await nReq('PATCH', 'pages/'+item.pageId, {
+        properties: { 'Status': { select: { name: 'Vendido' } } }
+      });
+    }
 
-    // 2. Calcula valor e desconto proporcional para cada disco
+    // 2. Calcula valor e desconto proporcional para cada item
     // Venda única: valorTotal já é o valor cobrado (pode diferir do preço de tabela); desconto vai direto.
-    // Carrinho: rateia o desconto total proporcionalmente ao peso do preço de cada disco no total bruto,
+    // Carrinho: rateia o desconto total proporcionalmente ao peso do preço de cada item no total bruto,
     // para que a soma das linhas individuais sempre bata com o total realmente cobrado.
     // O último item absorve a diferença de centavos do arredondamento, para a soma ficar exata.
     var valorBruto = item.preco;
@@ -883,20 +927,35 @@ async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
       descontoAcumulado += descontoItem;
     }
 
-    // Observações: registra parcelas se crédito
+    // Observações: registra parcelas se crédito, e contexto de lote
     var obs = '';
     if (pgto === 'Cartão Crédito' && parcelas > 1) {
       var taxa = TAXAS[parcelas] || 0;
       obs = parcelas+'x | taxa '+taxa+'%';
-      if (totalItens > 1) obs += ' | lote c/ '+totalItens+' discos';
+      if (totalItens > 1) obs += ' | lote c/ '+totalItens+' item(ns)';
     } else if (totalItens > 1) {
-      obs = 'Lote com '+totalItens+' discos';
+      obs = 'Lote com '+totalItens+' item(ns)';
+    }
+    if (isPnc) obs = (obs ? obs+' | ' : '') + 'PNC' + (item.desc ? ' — '+item.desc : '');
+
+    // 3. Upload de foto, se for PNC com foto anexada
+    var fileUploadId = null;
+    if (isPnc && item.fotoBase64) {
+      try {
+        var upRes = await fetch(PRXY+'upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64: item.fotoBase64, filename: 'pnc-'+Date.now()+'-'+i+'.jpg', mime: item.fotoMime })
+        });
+        var upData = await upRes.json();
+        if (upData.file_upload_id) fileUploadId = upData.file_upload_id;
+        else console.warn('Upload de foto PNC falhou, seguindo sem foto:', upData);
+      } catch(e) { console.warn('Erro no upload de foto PNC:', e); }
     }
 
-    // 3. Cria registro no banco Vendas
+    // 4. Cria registro no banco Vendas
     var vProps = {
-      'Disco Vendido':      { title:  [{ text:{ content: item.artista + (item.album ? ' — '+item.album : '') + ' ('+item.id+')' } }] },
-      'Disco (Estoque)':    { relation:[{ id: item.pageId }] },
+      'Disco Vendido':      { title:  [{ text:{ content: isPnc ? item.artista : (item.artista + (item.album ? ' — '+item.album : '') + ' ('+item.id+')') } }] },
       'Valor Bruto':        { number: valorBruto },
       'Valor Recebido':     { number: valorItem },
       'Desconto':           { number: descontoItem },
@@ -907,6 +966,9 @@ async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
       'Status Financeiro':  { select: { name: 'Recebido' } },
       'ID da Transação':    { rich_text: [{ text:{ content: txnId } }] }
     };
+    if (!isPnc) vProps['Disco (Estoque)'] = { relation: [{ id: item.pageId }] };
+    if (isPnc)  vProps['Origem / Propriedade'] = { select: { name: item.origem } };
+    if (fileUploadId) vProps['Imagem PNC'] = { files: [{ type: 'file_upload', file_upload: { id: fileUploadId } }] };
     if (pgto === 'Cartão Crédito' && parcelas > 1) vProps['Parcelas'] = { number: parcelas };
     if (obs) vProps['Observações'] = { rich_text: [{ text:{ content: obs } }] };
 
@@ -916,7 +978,7 @@ async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
     });
 
     // Log de confirmação no console para debug
-    console.log('[PDV] Venda registrada:', item.id, '→ Notion page', vendaResult.id);
+    console.log('[PDV] Venda registrada:', isPnc ? 'PNC' : item.id, '→ Notion page', vendaResult.id);
   }
 }
 
