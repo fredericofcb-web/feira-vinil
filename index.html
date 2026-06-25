@@ -851,6 +851,10 @@ async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
   // Permite agrupar no Notion depois sem perder o registro individual por disco.
   var txnId = 'TXN-' + Date.now();
 
+  // Soma bruta de todos os itens — usada para ratear o desconto proporcionalmente em vendas de carrinho
+  var somaBrutoCarrinho = itens.reduce(function(s, it){ return s + it.preco; }, 0);
+  var descontoAcumulado = 0; // soma do desconto já distribuído, para o último item absorver a diferença de centavos
+
   for (var i = 0; i < totalItens; i++) {
     var item = itens[i];
 
@@ -859,13 +863,25 @@ async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
       properties: { 'Status': { select: { name: 'Vendido' } } }
     });
 
-    // 2. Calcula valor proporcional para cada disco do carrinho
-    // No carrinho múltiplo: cada disco tem seu preço individual; o desconto é abatido do total
-    // Para venda única: valorTotal já é o valor cobrado (pode ser diferente do preço)
-    var valorItem = totalItens === 1 ? valorTotal : item.preco;
-    var descontoItem = totalItens === 1 ? desconto : 0;
-    // Bruto = preço de tabela do disco
+    // 2. Calcula valor e desconto proporcional para cada disco
+    // Venda única: valorTotal já é o valor cobrado (pode diferir do preço de tabela); desconto vai direto.
+    // Carrinho: rateia o desconto total proporcionalmente ao peso do preço de cada disco no total bruto,
+    // para que a soma das linhas individuais sempre bata com o total realmente cobrado.
+    // O último item absorve a diferença de centavos do arredondamento, para a soma ficar exata.
     var valorBruto = item.preco;
+    var valorItem, descontoItem;
+    if (totalItens === 1) {
+      valorItem = valorTotal;
+      descontoItem = desconto;
+    } else if (i === totalItens - 1) {
+      descontoItem = Math.round((desconto - descontoAcumulado) * 100) / 100;
+      valorItem = Math.round((item.preco - descontoItem) * 100) / 100;
+    } else {
+      var peso = somaBrutoCarrinho > 0 ? (item.preco / somaBrutoCarrinho) : (1 / totalItens);
+      descontoItem = Math.round(desconto * peso * 100) / 100;
+      valorItem = Math.round((item.preco - descontoItem) * 100) / 100;
+      descontoAcumulado += descontoItem;
+    }
 
     // Observações: registra parcelas se crédito
     var obs = '';
