@@ -325,10 +325,19 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     <div class="rcard"><div class="rlabel">Total bruto</div><div class="rval green" id="rBruto">R$ 0,00</div></div>
     <div class="rcard"><div class="rlabel">Discos vendidos</div><div class="rval" id="rQtd">0</div></div>
     <div class="rcard"><div class="rlabel">Ticket médio</div><div class="rval" id="rTicket">R$ 0,00</div></div>
-    <div class="rcard"><div class="rlabel">Margem total</div><div class="rval green" id="rMargem">R$ 0,00</div></div>
+    <div class="rcard"><div class="rlabel">Margem total</div><div class="rval green" id="rMargem">—</div></div>
   </div>
+
   <div class="card">
-    <div class="cl">Vendas de hoje</div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div class="cl" style="margin:0">💰 Fechamento (origem → pagamento)</div>
+      <button onclick="renderResumo()" style="background:transparent;border:none;color:var(--bl);font-size:11px;cursor:pointer;font-family:inherit">↻ Atualizar</button>
+    </div>
+    <div id="fechamentoLista"><div class="empty">—</div></div>
+  </div>
+
+  <div class="card">
+    <div class="cl">Vendas de hoje (agrupadas por carrinho)</div>
     <div id="vendasLista"><div class="empty">Nenhuma venda ainda</div></div>
   </div>
 </div>
@@ -808,6 +817,7 @@ async function confirmarPnc() {
       'Tipo de Operação':   { select: { name: 'Venda' } },
       'Status Financeiro':  { select: { name: 'Recebido' } },
       'Origem / Propriedade': { select: { name: pncOrigem } },
+      'ID da Transação':    { rich_text: [{ text:{ content: 'TXN-'+Date.now() } }] },
       'Observações':        { rich_text: [{ text:{ content: 'PNC' + (desc ? ' — '+desc : '') } }] }
     };
     if (fileUploadId) {
@@ -837,6 +847,9 @@ async function confirmarPnc() {
 async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
   var hoje = new Date().toISOString().split('T')[0];
   var totalItens = itens.length;
+  // ID de transação: mesmo valor para todos os discos de uma mesma compra (carrinho ou venda única).
+  // Permite agrupar no Notion depois sem perder o registro individual por disco.
+  var txnId = 'TXN-' + Date.now();
 
   for (var i = 0; i < totalItens; i++) {
     var item = itens[i];
@@ -875,8 +888,10 @@ async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
       'Data da Venda':      { date:   { start: hoje } },
       'Canal':              { select: { name: 'Feira' } },
       'Tipo de Operação':   { select: { name: 'Venda' } },
-      'Status Financeiro':  { select: { name: 'Recebido' } }
+      'Status Financeiro':  { select: { name: 'Recebido' } },
+      'ID da Transação':    { rich_text: [{ text:{ content: txnId } }] }
     };
+    if (pgto === 'Cartão Crédito' && parcelas > 1) vProps['Parcelas'] = { number: parcelas };
     if (obs) vProps['Observações'] = { rich_text: [{ text:{ content: obs } }] };
 
     var vendaResult = await nReq('POST', 'pages', {
@@ -892,27 +907,120 @@ async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
 function esc(s){ return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
 
 // ════════════════════════════════════════
-// RESUMO
+// RESUMO — busca direto no Notion (persiste entre recarregamentos/dispositivos)
+// Agrupa por ID da Transação (pacote do carrinho) e por Origem + Forma de Pagamento (fechamento)
 // ════════════════════════════════════════
-function renderResumo() {
-  var bruto = vendas.reduce(function(s,v){ return s+v.valor; }, 0);
-  var margem = vendas.reduce(function(s,v){ return s+(v.valor-(v.custo||0)); }, 0);
-  var ticket = vendas.length ? bruto/vendas.length : 0;
-  document.getElementById('rBruto').textContent  = fmt(bruto);
-  document.getElementById('rQtd').textContent    = vendas.length;
-  document.getElementById('rTicket').textContent = fmt(ticket);
-  document.getElementById('rMargem').textContent = fmt(margem);
+async function renderResumo() {
+  document.getElementById('vendasLista').innerHTML = '<div class="empty">⏳ Carregando vendas de hoje...</div>';
+  document.getElementById('fechamentoLista').innerHTML = '';
 
-  if (!vendas.length) { document.getElementById('vendasLista').innerHTML='<div class="empty">Nenhuma venda registrada hoje</div>'; return; }
+  var hoje = new Date().toISOString().split('T')[0];
+
+  try {
+    var res = await nReq('POST', 'databases/'+DB_V+'/query', {
+      filter: { property: 'Data da Venda', date: { equals: hoje } },
+      page_size: 100
+    });
+
+    var rows = (res.results || []).map(function(page) {
+      var p = page.properties;
+      function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
+      function gtxt(f){ try{ return p[f].rich_text[0].plain_text; }catch(e){ return ''; } }
+      function gs(f){ try{ return p[f].select.name; }catch(e){ return ''; } }
+      function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
+      return {
+        titulo: gt('Disco Vendido'),
+        valor: gn('Valor Recebido'),
+        bruto: gn('Valor Bruto'),
+        pgto: gs('Forma de Pagamento'),
+        origem: gs('Origem / Propriedade') || '—',
+        parcelas: gn('Parcelas'),
+        txn: gtxt('ID da Transação') || page.id // fallback: registros antigos sem ID da Transação ficam cada um sozinho
+      };
+    });
+
+    renderResumoCards(rows);
+    renderVendasAgrupadas(rows);
+    renderFechamento(rows);
+
+  } catch(e) {
+    document.getElementById('vendasLista').innerHTML = '<div class="empty">Erro ao carregar: '+e.message+'</div>';
+  }
+}
+
+function renderResumoCards(rows) {
+  var bruto = rows.reduce(function(s,v){ return s+v.valor; }, 0);
+  // Agrupa por transação só para contar "vendas" como pacotes, não discos individuais
+  var txns = {};
+  rows.forEach(function(v){ txns[v.txn] = true; });
+  var qtdTransacoes = Object.keys(txns).length;
+  var qtdDiscos = rows.length;
+  var ticket = qtdTransacoes ? bruto/qtdTransacoes : 0;
+
+  document.getElementById('rBruto').textContent  = fmt(bruto);
+  document.getElementById('rQtd').textContent    = qtdDiscos + (qtdTransacoes!==qtdDiscos ? ' ('+qtdTransacoes+' vendas)' : '');
+  document.getElementById('rTicket').textContent = fmt(ticket);
+  document.getElementById('rMargem').textContent = '—'; // margem real depende de custo por disco; ver Notion para detalhe
+}
+
+function renderVendasAgrupadas(rows) {
+  if (!rows.length) { document.getElementById('vendasLista').innerHTML = '<div class="empty">Nenhuma venda registrada hoje</div>'; return; }
+
+  // Agrupa linhas pelo mesmo ID da Transação → 1 carrinho = 1 cartão no resumo
+  var grupos = {};
+  var ordem = [];
+  rows.forEach(function(v) {
+    if (!grupos[v.txn]) { grupos[v.txn] = []; ordem.push(v.txn); }
+    grupos[v.txn].push(v);
+  });
+
   var html = '';
-  vendas.slice().reverse().forEach(function(v){
-    var cov = v.coverUrl
-      ? '<img class="venda-cov" src="'+v.coverUrl+'" onerror="this.style.display=\'none\'">'
-      : '<div class="venda-cov-ph">🎵</div>';
-    html += '<div class="venda-row">'+cov+'<div><div class="venda-art">'+esc(v.artista)+'</div><div class="venda-sub">'+esc(v.album||'')+'</div></div>'+
-      '<div style="margin-left:auto;text-align:right"><div class="venda-val">'+fmt(v.valor)+'</div><div class="venda-pgto">'+esc(v.pgto)+'</div></div></div>';
+  ordem.slice().reverse().forEach(function(txn) {
+    var itens = grupos[txn];
+    var total = itens.reduce(function(s,i){ return s+i.valor; }, 0);
+    var pgto = itens[0].pgto;
+    var parcelasInfo = itens[0].parcelas > 1 ? ' · '+itens[0].parcelas+'x' : '';
+    var titulos = itens.map(function(i){ return i.titulo; }).join(' + ');
+    var qtdLabel = itens.length > 1 ? itens.length+' discos' : '1 disco';
+
+    html += '<div class="venda-row">'+
+      '<div class="venda-cov-ph">'+(itens.length>1?'📦':'🎵')+'</div>'+
+      '<div style="min-width:0;flex:1"><div class="venda-art" style="white-space:normal">'+esc(titulos)+'</div><div class="venda-sub">'+qtdLabel+'</div></div>'+
+      '<div style="margin-left:auto;text-align:right;flex-shrink:0"><div class="venda-val">'+fmt(total)+'</div><div class="venda-pgto">'+esc(pgto||'')+esc(parcelasInfo)+'</div></div></div>';
   });
   document.getElementById('vendasLista').innerHTML = html;
+}
+
+function renderFechamento(rows) {
+  if (!rows.length) { document.getElementById('fechamentoLista').innerHTML = '<div class="empty">—</div>'; return; }
+
+  // Agrupa por Origem → Forma de Pagamento, somando Valor Recebido (igual ao fechamento manual no caderno)
+  var grupos = {}; // { origem: { pgto: total } }
+  rows.forEach(function(v) {
+    if (!grupos[v.origem]) grupos[v.origem] = {};
+    var key = v.pgto || 'Outro';
+    grupos[v.origem][key] = (grupos[v.origem][key] || 0) + v.valor;
+  });
+
+  var ordemOrigem = ['Sociedade','Pai','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
+  // Inclui qualquer origem não prevista na lista (segurança)
+  Object.keys(grupos).forEach(function(o){ if (ordemOrigem.indexOf(o)===-1) ordemOrigem.push(o); });
+
+  var html = '';
+  ordemOrigem.forEach(function(origem) {
+    var pgtos = grupos[origem];
+    var totalOrigem = Object.keys(pgtos).reduce(function(s,k){ return s+pgtos[k]; }, 0);
+    html += '<div style="margin-bottom:12px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+        '<span class="badge badge-pu">'+esc(origem)+'</span>'+
+        '<span style="font-weight:700;color:var(--gr)">'+fmt(totalOrigem)+'</span>'+
+      '</div>';
+    Object.keys(pgtos).forEach(function(pg) {
+      html += '<div class="row"><span class="rk">'+esc(pg)+'</span><span class="rv">'+fmt(pgtos[pg])+'</span></div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('fechamentoLista').innerHTML = html;
 }
 </script>
 </body>
