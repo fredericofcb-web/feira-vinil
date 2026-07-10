@@ -143,6 +143,34 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 .sel-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .sel-btn{background:var(--bg3);border:1px solid var(--bor);border-radius:8px;color:var(--tx2);font-size:14px;font-weight:600;padding:12px 8px;cursor:pointer;text-align:center;font-family:inherit}
 .sel-btn.sel{background:var(--pub);border-color:var(--pu);color:var(--pu)}
+
+/* ALERTA OFFLINE (laranja) */
+.aw{background:var(--orb);color:var(--or);border:1px solid #4d2a00}
+
+/* CATÁLOGO */
+.cat-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--bor);cursor:pointer}
+.cat-row:last-child{border:none}
+.cat-info{flex:1;min-width:0}
+.cat-art{font-size:14.5px;font-weight:600;line-height:1.25}
+.cat-alb{font-size:12px;color:var(--tx2);margin-top:1px}
+.cat-meta{font-size:11px;color:var(--tx3);margin-top:2px}
+.cat-right{text-align:right;flex-shrink:0}
+.cat-preco{font-size:14px;font-weight:700}
+.chip{display:inline-block;padding:2px 8px;border-radius:100px;font-size:10.5px;font-weight:700;margin-top:3px}
+.chip-gr{background:var(--grb);color:var(--gr);border:1px solid var(--grbd)}
+.chip-re{background:var(--reb);color:var(--re);border:1px solid var(--rebd)}
+.chip-ye{background:var(--yeb);color:var(--ye);border:1px solid var(--yebd)}
+.chip-gy{background:var(--bg3);color:var(--tx2);border:1px solid var(--bor)}
+.filtro-chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.fchip{background:var(--bg3);border:1px solid var(--bor);border-radius:100px;color:var(--tx2);font-size:12px;font-weight:600;padding:6px 14px;cursor:pointer;font-family:inherit}
+.fchip.sel{background:var(--blb);border-color:var(--bl);color:var(--bl)}
+.sync-bar{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--tx3);margin-top:8px}
+.sync-btn{background:transparent;border:none;color:var(--bl);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;padding:4px}
+
+/* FILA OFFLINE */
+.fila-card{background:var(--orb);border:1px solid #4d2a00;border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.fila-tit{font-size:13px;font-weight:700;color:var(--or)}
+.fila-sub{font-size:11px;color:var(--tx2);margin-top:2px}
 </style>
 </head>
 <body>
@@ -220,6 +248,8 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       </div>
       <div class="taxa-info" id="taxaInfo"></div>
     </div>
+    <div class="cl" style="margin:10px 0 6px">Cliente (opcional)</div>
+    <input class="inp" id="compradorUnico" type="text" placeholder="Nome do comprador" style="font-size:14px;padding:10px 12px"/>
     <hr style="border:none;border-top:1px solid var(--bor);margin:12px 0"/>
     <button class="btn bg" id="btnConfirmar" onclick="confirmar()">✓ Confirmar venda</button>
   </div>
@@ -320,14 +350,78 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       </div>
       <div class="taxa-info" id="cartTaxaInfo"></div>
     </div>
+    <div class="cl" style="margin:10px 0 6px">Cliente (opcional)</div>
+    <input class="inp" id="compradorCart" type="text" placeholder="Nome do comprador" style="font-size:14px;padding:10px 12px"/>
     <hr style="border:none;border-top:1px solid var(--bor);margin:12px 0"/>
     <button class="btn bg" id="btnFecharCart" onclick="fecharCarrinho()">✓ Fechar compra</button>
+  </div>
+</div>
+
+<!-- ══ CATÁLOGO ══ -->
+<div id="scr-catalogo" class="scr">
+  <div class="page-title">🔍 Catálogo</div>
+
+  <div id="aC" class="ale ae"></div>
+  <div id="aCok" class="ale ao"></div>
+  <div id="aCload" class="ale al"></div>
+
+  <div class="card">
+    <input class="inp" id="catBusca" type="text" placeholder="Artista, álbum ou VNL…"
+      autocomplete="off" oninput="renderCatalogo()"/>
+    <div class="filtro-chips">
+      <button class="fchip sel" id="fc-todos" onclick="setCatFiltro('todos',this)">Todos</button>
+      <button class="fchip" id="fc-disp" onclick="setCatFiltro('Disponível',this)">🟢 Disponíveis</button>
+      <button class="fchip" id="fc-vend" onclick="setCatFiltro('Vendido',this)">🔴 Vendidos</button>
+    </div>
+    <div class="sync-bar">
+      <span id="catInfo">Catálogo ainda não baixado</span>
+      <button class="sync-btn" id="btnSync" onclick="sincronizarCatalogo(true)">↓ Baixar catálogo</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="catResultados"><div class="empty">Baixe o catálogo e digite pra buscar.<br/>A busca funciona até sem internet.</div></div>
+  </div>
+
+  <button class="pnc-link" onclick="abrirPedido()">🎯 Não temos? Anotar pedido do cliente</button>
+
+  <!-- PEDIDO / WANT -->
+  <div class="card" id="pedidoCard" style="display:none">
+    <div class="cl" style="color:var(--pu)">🎯 Anotar pedido (want list)</div>
+    <div class="cl">Artista / Álbum procurado</div>
+    <input class="inp" id="pedDisco" type="text" placeholder="Ex: Iron Maiden — Powerslave" style="margin-bottom:12px"/>
+    <div class="cl">Nome do cliente</div>
+    <input class="inp" id="pedNome" type="text" placeholder="Nome" style="margin-bottom:12px"/>
+    <div class="cl">WhatsApp (com DDD)</div>
+    <input class="inp" id="pedZap" type="tel" inputmode="tel" placeholder="(21) 99999-9999" style="margin-bottom:12px"/>
+    <div class="cl">Prioridade</div>
+    <div class="sel-grid" style="grid-template-columns:1fr 1fr 1fr">
+      <button class="sel-btn" onclick="selPedPrio('🔴 Alta',this)">🔴 Alta</button>
+      <button class="sel-btn sel" onclick="selPedPrio('🟡 Média',this)">🟡 Média</button>
+      <button class="sel-btn" onclick="selPedPrio('🟢 Baixa',this)">🟢 Baixa</button>
+    </div>
+    <div class="cl">Observação</div>
+    <input class="inp" id="pedObs" type="text" placeholder="Ex: paga até R$ 80, prefere prensagem nacional" style="margin-bottom:12px"/>
+    <button class="btn bp" id="btnSalvarPedido" onclick="salvarPedido()">✓ Salvar pedido</button>
+    <button class="btn bo" onclick="fecharPedido()" style="margin-top:8px">Cancelar</button>
   </div>
 </div>
 
 <!-- ══ RESUMO ══ -->
 <div id="scr-resumo" class="scr">
   <div class="page-title">📊 Resumo do dia</div>
+
+  <!-- FILA OFFLINE -->
+  <div class="fila-card" id="filaCard" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div>
+        <div class="fila-tit">⏳ <span id="filaQtd">0</span> venda(s) aguardando envio</div>
+        <div class="fila-sub">Registradas sem internet — nada foi perdido. Total: <span id="filaTotal">R$ 0,00</span></div>
+      </div>
+      <button class="btn bb" id="btnFlush" style="width:auto;padding:10px 14px;font-size:13px" onclick="flushFila(true)">Enviar agora</button>
+    </div>
+  </div>
+
   <div class="resumo-grid">
     <div class="rcard"><div class="rlabel">Total bruto</div><div class="rval green" id="rBruto">R$ 0,00</div></div>
     <div class="rcard"><div class="rlabel">Discos vendidos</div><div class="rval" id="rQtd">0</div></div>
@@ -341,6 +435,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <button onclick="renderResumo()" style="background:transparent;border:none;color:var(--bl);font-size:11px;cursor:pointer;font-family:inherit">↻ Atualizar</button>
     </div>
     <div id="fechamentoLista"><div class="empty">—</div></div>
+    <button class="btn bb" id="btnCopiarFech" onclick="copiarFechamento()" style="margin-top:10px">📋 Copiar fechamento do dia</button>
   </div>
 
   <div class="card">
@@ -356,9 +451,14 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     Vender
     <div class="cart-badge" id="cartBadge"></div>
   </button>
+  <button class="nb" id="nav-catalogo" onclick="goScr('catalogo',this)">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    Catálogo
+  </button>
   <button class="nb" id="nav-resumo" onclick="goScr('resumo',this)">
     <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     Resumo
+    <div class="cart-badge" id="filaBadge"></div>
   </button>
 </nav>
 
@@ -366,10 +466,25 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 // ════════════════════════════════════════
 // CONFIG
 // ════════════════════════════════════════
-var DB_E = 'f017299ec289407790e49194971ee03e';
-var DB_V = '9a61fa415c264375a58ed49cc699cad0';
+var DB_E  = 'f017299ec289407790e49194971ee03e';  // Estoque
+var DB_V  = '9a61fa415c264375a58ed49cc699cad0';  // Vendas
+var DB_P  = 'a1af6ecd9afa43c287bf8e44a6a650cb';  // Pedidos & Wants
+var DB_PE = 'c1b5097488ea4b6a854223a177170280';  // Pessoas
 var PRXY = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev/v1/';
 var TAXAS = {1:0, 2:3.49, 3:4.99, 4:6.49, 6:8.49, 10:12.49, 12:14.49};
+
+// Data LOCAL (corrige bug: toISOString usa UTC e vira o dia às ~21h no Brasil)
+function hojeLocal() {
+  var d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+// Normaliza texto pra busca: minúsculo e sem acento
+function normTxt(s) {
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+}
+// localStorage seguro (não explode se cheio/indisponível)
+function lsGet(k, fb) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e) { return fb; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e) { console.warn('localStorage falhou:', e); return false; } }
 
 // ════════════════════════════════════════
 // STATE
@@ -388,6 +503,11 @@ var pncFotoMime = null;
 var pncOrigem = null;
 var pncPgto = null;
 
+var catalogo = lsGet('vnl_cat', []);      // catálogo local do estoque
+var catFiltro = 'todos';
+var pedPrio = '🟡 Média';
+var flushing = false;
+
 // ════════════════════════════════════════
 // NAV
 // ════════════════════════════════════════
@@ -397,6 +517,11 @@ function goScr(s, btn) {
   document.getElementById('scr-'+s).classList.add('on');
   btn.classList.add('on');
   if (s === 'resumo') renderResumo();
+  if (s === 'catalogo') {
+    atualizaCatInfo();
+    renderCatalogo();
+    setTimeout(function(){ document.getElementById('catBusca').focus(); }, 150);
+  }
   window.scrollTo(0,0);
 }
 
@@ -476,23 +601,6 @@ async function buscar() {
     function gms(f){ try{ return p[f].multi_select.map(function(x){ return x.name; }).join(', ')||'—'; }catch(e){ return '—'; } }
     function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
 
-    var status   = gs('Status');
-    var artista  = gt('Título/Artista/Banda') || '(sem título)';
-    var album    = gr('Álbum');
-    var preco    = gn('Preço Final');
-    var custo    = gn('Valor de Custo');
-    var condicao = gs('Condição DISCO');
-    var local    = gms('Localização');
-    var cat      = gs('Categoria');
-    var origem   = gs('Origem / Propriedade');
-
-    if (status === 'Vendido') {
-      showAle('aV','ae','VNL-'+num+' já foi vendido.');
-      document.getElementById('btnBuscar').disabled = false;
-      hideAle('aVload');
-      return;
-    }
-
     var coverUrl = '';
     try {
       var imgs = p['Imagem da Capa'] && p['Imagem da Capa'].files;
@@ -501,65 +609,101 @@ async function buscar() {
       }
     } catch(e) {}
 
-    discoAtual = {
-      id:'VNL-'+num, artista:artista, album:album,
-      preco:preco, custo:custo, status:status,
-      condicao:condicao, local:local, cat:cat, origem:origem,
-      coverUrl:coverUrl, pageId:page.id
+    var d = {
+      id:'VNL-'+num, artista: gt('Título/Artista/Banda') || '(sem título)', album: gr('Álbum'),
+      preco: gn('Preço Final'), custo: gn('Valor de Custo'), status: gs('Status'),
+      condicao: gs('Condição DISCO'), local: gms('Localização'), cat: gs('Categoria'),
+      origem: gs('Origem / Propriedade'), coverUrl: coverUrl, pageId: page.id
     };
 
-    var coverEl = document.getElementById('dCover');
-    var coverPh = document.getElementById('dCoverPh');
-    if (coverUrl) {
-      coverEl.src = coverUrl;
-      coverEl.style.display = 'block';
-      coverPh.style.display = 'none';
-    } else {
-      coverEl.style.display = 'none';
-      coverPh.style.display = 'flex';
+    if (d.status === 'Vendido') {
+      showAle('aV','ae','VNL-'+num+' já foi vendido.');
+      document.getElementById('btnBuscar').disabled = false;
+      hideAle('aVload');
+      return;
     }
 
-    document.getElementById('dArtista').textContent = artista;
-    document.getElementById('dAlbum').textContent   = album || '—';
-    document.getElementById('dId').textContent      = 'VNL-'+num;
-    document.getElementById('dCond').textContent    = condicao;
-    document.getElementById('dLoc').textContent     = local;
-    document.getElementById('dCat').textContent     = cat;
-    document.getElementById('dPreco').textContent   = fmt(preco);
-    document.getElementById('dCusto').textContent   = fmt(custo);
-    document.getElementById('dMargem').textContent  = fmt(preco - custo);
-
-    var badge = document.getElementById('dBadge');
-    badge.className = 'badge '+(status === 'Reservado' ? 'badge-ye' : 'badge-gr');
-    badge.textContent = status || 'Disponível';
-
-    var origemBadge = document.getElementById('dOrigem');
-    if (origem && origem !== '—') {
-      origemBadge.textContent = origem;
-      origemBadge.style.display = 'inline-block';
-    } else {
-      origemBadge.style.display = 'none';
-    }
-
-    document.getElementById('valorFinal').value = preco.toFixed(2);
-    pgtoAtual = null; parcelasAtual = 1;
-    document.querySelectorAll('#pgtoCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
-    document.querySelectorAll('#parcelasWrap .parc-btn').forEach(function(b){ b.classList.remove('sel'); });
-    document.querySelector('#parcelasWrap .parc-btn').classList.add('sel');
-    document.getElementById('parcelasWrap').classList.remove('show');
-    document.getElementById('taxaInfo').textContent = '';
-
-    document.getElementById('discoCard').style.display = 'block';
-    document.getElementById('pgtoCard').style.display  = 'block';
-    hideAle('aVload');
-
-    setTimeout(function(){ document.getElementById('discoCard').scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
+    exibirDisco(d, false);
 
   } catch(e) {
-    showAle('aV','ae','Erro: '+e.message);
-    hideAle('aVload');
+    // Sem internet (ou proxy fora): tenta o catálogo baixado no aparelho
+    if (!buscarNoCache(num)) {
+      showAle('aV','ae','Erro: '+e.message+(catalogo.length ? '' : '<br/>Dica: baixe o catálogo na aba 🔍 pra funcionar offline.'));
+      hideAle('aVload');
+    }
   }
   document.getElementById('btnBuscar').disabled = false;
+}
+
+// Busca no catálogo local (modo offline)
+function buscarNoCache(num) {
+  var c = catalogo.find(function(x){ return x.cod === num; });
+  if (!c) return false;
+  if (c.st === 'Vendido') {
+    showAle('aV','ae','VNL-'+num+' já foi vendido (segundo o catálogo baixado).');
+    hideAle('aVload');
+    return true;
+  }
+  exibirDisco({
+    id:'VNL-'+num, artista: c.ar || '(sem título)', album: c.al || '',
+    preco: c.pr || 0, custo: c.cu || 0, status: c.st || 'Disponível',
+    condicao: c.cd || '—', local: c.lo || '—', cat: c.ct || '—',
+    origem: c.og || '—', coverUrl: '', pageId: c.pid
+  }, true);
+  return true;
+}
+
+// Preenche o card do disco (usado pela busca online e offline)
+function exibirDisco(d, offline) {
+  discoAtual = d;
+
+  var coverEl = document.getElementById('dCover');
+  var coverPh = document.getElementById('dCoverPh');
+  if (d.coverUrl) {
+    coverEl.src = d.coverUrl;
+    coverEl.style.display = 'block';
+    coverPh.style.display = 'none';
+  } else {
+    coverEl.style.display = 'none';
+    coverPh.style.display = 'flex';
+  }
+
+  document.getElementById('dArtista').textContent = d.artista;
+  document.getElementById('dAlbum').textContent   = d.album || '—';
+  document.getElementById('dId').textContent      = d.id;
+  document.getElementById('dCond').textContent    = d.condicao;
+  document.getElementById('dLoc').textContent     = d.local;
+  document.getElementById('dCat').textContent     = d.cat;
+  document.getElementById('dPreco').textContent   = fmt(d.preco);
+  document.getElementById('dCusto').textContent   = fmt(d.custo);
+  document.getElementById('dMargem').textContent  = fmt(d.preco - d.custo);
+
+  var badge = document.getElementById('dBadge');
+  badge.className = 'badge '+(d.status === 'Reservado' ? 'badge-ye' : 'badge-gr');
+  badge.textContent = d.status || 'Disponível';
+
+  var origemBadge = document.getElementById('dOrigem');
+  if (d.origem && d.origem !== '—') {
+    origemBadge.textContent = d.origem;
+    origemBadge.style.display = 'inline-block';
+  } else {
+    origemBadge.style.display = 'none';
+  }
+
+  document.getElementById('valorFinal').value = (d.preco||0).toFixed(2);
+  pgtoAtual = null; parcelasAtual = 1;
+  document.querySelectorAll('#pgtoCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  document.querySelectorAll('#parcelasWrap .parc-btn').forEach(function(b){ b.classList.remove('sel'); });
+  document.querySelector('#parcelasWrap .parc-btn').classList.add('sel');
+  document.getElementById('parcelasWrap').classList.remove('show');
+  document.getElementById('taxaInfo').textContent = '';
+
+  document.getElementById('discoCard').style.display = 'block';
+  document.getElementById('pgtoCard').style.display  = 'block';
+  hideAle('aVload');
+  if (offline) showAle('aVok','aw','📴 Sem internet — dados do catálogo baixado. A venda fica guardada e sobe depois.');
+
+  setTimeout(function(){ document.getElementById('discoCard').scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
 }
 
 // ════════════════════════════════════════
@@ -592,27 +736,50 @@ async function confirmar() {
   if (!pgtoAtual) { showAle('aV','ae','Selecione a forma de pagamento.'); return; }
   var valor = parseFloat(document.getElementById('valorFinal').value);
   if (!valor || valor <= 0) { showAle('aV','ae','Informe o valor cobrado.'); return; }
+  var comprador = document.getElementById('compradorUnico').value.trim();
   document.getElementById('btnConfirmar').disabled = true;
   showAle('aVload','al','Registrando venda...');
-  try {
-    await registrarVenda([discoAtual], valor, pgtoAtual, parcelasAtual, 0);
-    vendas.push({ artista:discoAtual.artista, album:discoAtual.album, valor:valor, pgto:pgtoAtual, coverUrl:discoAtual.coverUrl, custo:discoAtual.custo });
-    showAle('aVok','ao','✓ Venda registrada! '+discoAtual.artista+' — '+discoAtual.id);
+
+  var job = montarJob([discoAtual], valor, pgtoAtual, parcelasAtual, 0, comprador);
+  var r = await venderComFallback(job);
+
+  if (r.ok || r.queued) {
+    marcarVendidoNoCache(job);
+    if (r.ok) showAle('aVok','ao','✓ Venda registrada! '+discoAtual.artista+' — '+discoAtual.id);
+    else showAle('aVok','aw','📴 Sem internet — venda de '+discoAtual.artista+' guardada no aparelho. Sobe sozinha quando a rede voltar.');
     hideAle('aVload');
     document.getElementById('discoCard').style.display = 'none';
     document.getElementById('pgtoCard').style.display = 'none';
     document.getElementById('idInput').value = '';
+    document.getElementById('compradorUnico').value = '';
     discoAtual = null;
-  } catch(e) {
-    showAle('aV','ae','Erro ao registrar: '+e.message);
+  } else {
+    showAle('aV','ae','Erro ao registrar: '+r.err);
     hideAle('aVload');
   }
   document.getElementById('btnConfirmar').disabled = false;
 }
 
 // ════════════════════════════════════════
-// CARRINHO
+// CARRINHO — persistido no aparelho (sobrevive a refresh/fechar página)
 // ════════════════════════════════════════
+function saveCart() {
+  if (!lsSet('vnl_cart', carrinho)) {
+    // Provável excesso de fotos PNC: tenta salvar sem as fotos pra não perder os itens
+    var semFotos = carrinho.map(function(i){ var c = Object.assign({}, i); delete c.fotoBase64; return c; });
+    lsSet('vnl_cart', semFotos);
+  }
+}
+function restoreCart() {
+  var salvo = lsGet('vnl_cart', []);
+  if (salvo && salvo.length) {
+    carrinho = salvo;
+    renderCarrinho();
+    atualizaBadge();
+    showAle('aVok','aw','🛒 Carrinho recuperado ('+carrinho.length+' item(ns)) — nada foi perdido.');
+  }
+}
+
 function addCarrinho() {
   if (!discoAtual) return;
   var jatem = carrinho.find(function(i){ return i.pageId === discoAtual.pageId; });
@@ -630,6 +797,7 @@ function addCarrinho() {
     coverUrl: discoAtual.coverUrl
   });
 
+  saveCart();
   showAle('aVok','ao','✓ '+discoAtual.artista+' adicionado! Busque o próximo disco.');
   discoAtual = null;
   document.getElementById('idInput').value = '';
@@ -688,6 +856,7 @@ function renderCartTotal() {
 
 function removerCart(idx) {
   carrinho.splice(idx,1);
+  saveCart();
   renderCarrinho();
   atualizaBadge();
   if (!carrinho.length) document.getElementById('cartCard').style.display = 'none';
@@ -695,8 +864,10 @@ function removerCart(idx) {
 
 function limparCarrinho() {
   carrinho = []; cartPgto = null; cartParcelas = 1;
+  saveCart();
   document.getElementById('cartCard').style.display = 'none';
   document.getElementById('cartDesc').value = '';
+  document.getElementById('compradorCart').value = '';
   atualizaBadge();
 }
 
@@ -727,18 +898,22 @@ async function fecharCarrinho() {
   var desc = parseFloat(document.getElementById('cartDesc').value) || 0;
   var sub = carrinho.reduce(function(s,i){ return s+i.preco; }, 0);
   var total = Math.max(0, sub - desc);
+  var comprador = document.getElementById('compradorCart').value.trim();
   document.getElementById('btnFecharCart').disabled = true;
   showAle('aVload','al','Registrando '+carrinho.length+' disco(s)...');
-  try {
-    await registrarVenda(carrinho, total, cartPgto, cartParcelas, desc);
-    carrinho.forEach(function(item){
-      vendas.push({ artista:item.artista, album:item.album, valor:item.preco, pgto:cartPgto, coverUrl:item.coverUrl, custo:item.custo });
-    });
-    showAle('aVok','ao','✓ '+carrinho.length+' disco(s) vendido(s)! Total: '+fmt(total));
+
+  var qtd = carrinho.length;
+  var job = montarJob(carrinho, total, cartPgto, cartParcelas, desc, comprador);
+  var r = await venderComFallback(job);
+
+  if (r.ok || r.queued) {
+    marcarVendidoNoCache(job);
+    if (r.ok) showAle('aVok','ao','✓ '+qtd+' disco(s) vendido(s)! Total: '+fmt(total));
+    else showAle('aVok','aw','📴 Sem internet — venda de '+qtd+' disco(s) ('+fmt(total)+') guardada no aparelho. Sobe sozinha quando a rede voltar.');
     hideAle('aVload');
     limparCarrinho();
-  } catch(e) {
-    showAle('aV','ae','Erro: '+e.message);
+  } else {
+    showAle('aV','ae','Erro: '+r.err);
     hideAle('aVload');
   }
   document.getElementById('btnFecharCart').disabled = false;
@@ -771,15 +946,38 @@ function toggleVendaDiretaPnc() {
 function handlePncFoto(input) {
   var file = input.files[0];
   if (!file) return;
-  pncFotoMime = file.type || 'image/jpeg';
+  // Comprime a foto (máx 1200px, JPEG 72%) — upload muito mais rápido no 4G da feira
   var reader = new FileReader();
   reader.onload = function(e) {
-    var dataUrl = e.target.result;
-    pncFotoBase64 = dataUrl.split(',')[1];
-    var prev = document.getElementById('pncPhotoPrev');
-    prev.src = dataUrl;
-    prev.style.display = 'block';
-    document.getElementById('pncPhotoPlaceholder').style.display = 'none';
+    var img = new Image();
+    img.onload = function() {
+      var MAX = 1200;
+      var w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h*MAX/w); w = MAX; }
+        else { w = Math.round(w*MAX/h); h = MAX; }
+      }
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      var dataUrl = cv.toDataURL('image/jpeg', 0.72);
+      pncFotoBase64 = dataUrl.split(',')[1];
+      pncFotoMime = 'image/jpeg';
+      var prev = document.getElementById('pncPhotoPrev');
+      prev.src = dataUrl;
+      prev.style.display = 'block';
+      document.getElementById('pncPhotoPlaceholder').style.display = 'none';
+    };
+    img.onerror = function() {
+      // Fallback: usa a foto original sem comprimir
+      pncFotoBase64 = e.target.result.split(',')[1];
+      pncFotoMime = file.type || 'image/jpeg';
+      var prev = document.getElementById('pncPhotoPrev');
+      prev.src = e.target.result;
+      prev.style.display = 'block';
+      document.getElementById('pncPhotoPlaceholder').style.display = 'none';
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -814,6 +1012,7 @@ function addPncAoCarrinho() {
     desc: desc
   });
 
+  saveCart();
   showAle('aVok','ao','✓ PNC adicionado ao carrinho! Pode buscar outro disco ou fechar a venda.');
   fecharPnc();
   renderCarrinho();
@@ -829,157 +1028,224 @@ async function confirmarPnc() {
   document.getElementById('btnConfirmarPnc').disabled = true;
   showAle('aVload','al','Registrando venda PNC...');
 
-  try {
-    var fileUploadId = null;
-    if (pncFotoBase64) {
-      showAle('aVload','al','Enviando foto...');
-      var upRes = await fetch(PRXY+'upload-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64: pncFotoBase64, filename: 'pnc-'+Date.now()+'.jpg', mime: pncFotoMime })
-      });
-      var upData = await upRes.json();
-      if (upData.file_upload_id) fileUploadId = upData.file_upload_id;
-      else console.warn('Upload de foto falhou, seguindo sem foto:', upData);
-    }
+  var item = {
+    tipo: 'pnc', pageId: null,
+    artista: 'PNC — ' + (desc || 'Produto não cadastrado'),
+    album: desc, id: 'PNC', preco: valor, custo: 0,
+    origem: pncOrigem, fotoBase64: pncFotoBase64, fotoMime: pncFotoMime, desc: desc
+  };
+  var job = montarJob([item], valor, pncPgto, 1, 0, '');
+  var r = await venderComFallback(job);
 
-    showAle('aVload','al','Registrando venda...');
-    var hoje = new Date().toISOString().split('T')[0];
-    var titulo = 'PNC — ' + (desc || 'Produto não cadastrado');
-
-    var vProps = {
-      'Disco Vendido':      { title: [{ text:{ content: titulo } }] },
-      'Valor Bruto':        { number: valor },
-      'Valor Recebido':     { number: valor },
-      'Desconto':           { number: 0 },
-      'Forma de Pagamento': { select: { name: pncPgto } },
-      'Data da Venda':      { date: { start: hoje } },
-      'Canal':              { select: { name: 'Feira' } },
-      'Tipo de Operação':   { select: { name: 'Venda' } },
-      'Status Financeiro':  { select: { name: 'Recebido' } },
-      'Origem / Propriedade': { select: { name: pncOrigem } },
-      'ID da Transação':    { rich_text: [{ text:{ content: 'TXN-'+Date.now() } }] },
-      'Observações':        { rich_text: [{ text:{ content: 'PNC' + (desc ? ' — '+desc : '') } }] }
-    };
-    if (fileUploadId) {
-      vProps['Imagem PNC'] = { files: [{ type: 'file_upload', file_upload: { id: fileUploadId } }] };
-    }
-
-    var vendaResult = await nReq('POST', 'pages', {
-      parent: { database_id: DB_V },
-      properties: vProps
-    });
-
-    vendas.push({ artista: titulo, album: desc, valor: valor, pgto: pncPgto, coverUrl: '', custo: 0 });
-    showAle('aVok','ao','✓ Venda PNC registrada! '+fmt(valor));
+  if (r.ok || r.queued) {
+    if (r.ok) showAle('aVok','ao','✓ Venda PNC registrada! '+fmt(valor));
+    else showAle('aVok','aw','📴 Sem internet — venda PNC ('+fmt(valor)+') guardada no aparelho. Sobe sozinha quando a rede voltar.');
     hideAle('aVload');
     fecharPnc();
-
-  } catch(e) {
-    showAle('aV','ae','Erro ao registrar PNC: '+e.message);
+  } else {
+    showAle('aV','ae','Erro ao registrar PNC: '+r.err);
     hideAle('aVload');
   }
   document.getElementById('btnConfirmarPnc').disabled = false;
 }
 
 // ════════════════════════════════════════
-// REGISTRAR VENDA — COMPLETO COM NOTION
+// REGISTRAR VENDA — com FILA OFFLINE
+// A matemática (rateio de desconto etc.) é calculada NA HORA da venda e congelada
+// num "job". O envio pro Notion pode acontecer depois, sem perder nada.
 // ════════════════════════════════════════
-async function registrarVenda(itens, valorTotal, pgto, parcelas, desconto) {
-  var hoje = new Date().toISOString().split('T')[0];
+function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador) {
   var totalItens = itens.length;
-  // ID de transação: mesmo valor para todos os itens de uma mesma compra (carrinho ou venda única),
-  // incluindo discos cadastrados e PNCs juntos. Permite agrupar no Notion sem perder o registro individual.
   var txnId = 'TXN-' + Date.now();
-
-  // Soma bruta de todos os itens (cadastrados + PNC) — usada para ratear o desconto proporcionalmente
-  var somaBrutoCarrinho = itens.reduce(function(s, it){ return s + it.preco; }, 0);
-  var descontoAcumulado = 0; // soma do desconto já distribuído, para o último item absorver a diferença de centavos
+  var somaBruto = itens.reduce(function(s, it){ return s + it.preco; }, 0);
+  var descAcum = 0;
+  var jobItens = [];
 
   for (var i = 0; i < totalItens; i++) {
     var item = itens[i];
     var isPnc = item.tipo === 'pnc';
 
-    // 1. Marca disco como Vendido no Estoque — só aplica a itens cadastrados (PNC não tem página de Estoque)
-    if (!isPnc) {
-      await nReq('PATCH', 'pages/'+item.pageId, {
-        properties: { 'Status': { select: { name: 'Vendido' } } }
-      });
-    }
-
-    // 2. Calcula valor e desconto proporcional para cada item
-    // Venda única: valorTotal já é o valor cobrado (pode diferir do preço de tabela); desconto vai direto.
-    // Carrinho: rateia o desconto total proporcionalmente ao peso do preço de cada item no total bruto,
-    // para que a soma das linhas individuais sempre bata com o total realmente cobrado.
-    // O último item absorve a diferença de centavos do arredondamento, para a soma ficar exata.
-    var valorBruto = item.preco;
     var valorItem, descontoItem;
     if (totalItens === 1) {
-      valorItem = valorTotal;
-      descontoItem = desconto;
+      valorItem = valorTotal; descontoItem = desconto;
     } else if (i === totalItens - 1) {
-      descontoItem = Math.round((desconto - descontoAcumulado) * 100) / 100;
+      descontoItem = Math.round((desconto - descAcum) * 100) / 100;
       valorItem = Math.round((item.preco - descontoItem) * 100) / 100;
     } else {
-      var peso = somaBrutoCarrinho > 0 ? (item.preco / somaBrutoCarrinho) : (1 / totalItens);
+      var peso = somaBruto > 0 ? (item.preco / somaBruto) : (1 / totalItens);
       descontoItem = Math.round(desconto * peso * 100) / 100;
       valorItem = Math.round((item.preco - descontoItem) * 100) / 100;
-      descontoAcumulado += descontoItem;
+      descAcum += descontoItem;
     }
 
-    // Observações: registra parcelas se crédito, e contexto de lote
     var obs = '';
     if (pgto === 'Cartão Crédito' && parcelas > 1) {
-      var taxa = TAXAS[parcelas] || 0;
-      obs = parcelas+'x | taxa '+taxa+'%';
+      obs = parcelas+'x | taxa '+(TAXAS[parcelas]||0)+'%';
       if (totalItens > 1) obs += ' | lote c/ '+totalItens+' item(ns)';
     } else if (totalItens > 1) {
       obs = 'Lote com '+totalItens+' item(ns)';
     }
     if (isPnc) obs = (obs ? obs+' | ' : '') + 'PNC' + (item.desc ? ' — '+item.desc : '');
 
-    // 3. Upload de foto, se for PNC com foto anexada
+    jobItens.push({
+      isPnc: isPnc,
+      pageId: item.pageId || null,
+      titulo: isPnc ? item.artista : (item.artista + (item.album ? ' — '+item.album : '') + ' ('+item.id+')'),
+      id: item.id,
+      valorBruto: item.preco,
+      valorItem: valorItem,
+      descontoItem: descontoItem,
+      obs: obs,
+      origem: item.origem || null,
+      fotoBase64: item.fotoBase64 || null,
+      fotoMime: item.fotoMime || null
+    });
+  }
+
+  return {
+    t: 'venda', txn: txnId, dia: hojeLocal(),
+    pgto: pgto, parcelas: parcelas, comprador: comprador || '',
+    itens: jobItens, done: jobItens.map(function(){ return false; })
+  };
+}
+
+async function enviarJob(job) {
+  if (job.t === 'pedido') { await enviarPedido(job); return; }
+
+  for (var i = 0; i < job.itens.length; i++) {
+    if (job.done[i]) continue; // já subiu numa tentativa anterior — não duplica
+    var it = job.itens[i];
+
+    if (!it.isPnc && it.pageId) {
+      await nReq('PATCH', 'pages/'+it.pageId, {
+        properties: { 'Status': { select: { name: 'Vendido' } } }
+      });
+    }
+
     var fileUploadId = null;
-    if (isPnc && item.fotoBase64) {
+    if (it.isPnc && it.fotoBase64) {
       try {
         var upRes = await fetch(PRXY+'upload-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base64: item.fotoBase64, filename: 'pnc-'+Date.now()+'-'+i+'.jpg', mime: item.fotoMime })
+          body: JSON.stringify({ base64: it.fotoBase64, filename: 'pnc-'+Date.now()+'-'+i+'.jpg', mime: it.fotoMime })
         });
         var upData = await upRes.json();
         if (upData.file_upload_id) fileUploadId = upData.file_upload_id;
-        else console.warn('Upload de foto PNC falhou, seguindo sem foto:', upData);
-      } catch(e) { console.warn('Erro no upload de foto PNC:', e); }
+      } catch(e) { console.warn('Upload de foto PNC falhou, seguindo sem foto:', e); }
     }
 
-    // 4. Cria registro no banco Vendas
     var vProps = {
-      'Disco Vendido':      { title:  [{ text:{ content: isPnc ? item.artista : (item.artista + (item.album ? ' — '+item.album : '') + ' ('+item.id+')') } }] },
-      'Valor Bruto':        { number: valorBruto },
-      'Valor Recebido':     { number: valorItem },
-      'Desconto':           { number: descontoItem },
-      'Forma de Pagamento': { select: { name: pgto } },
-      'Data da Venda':      { date:   { start: hoje } },
+      'Disco Vendido':      { title:  [{ text:{ content: it.titulo } }] },
+      'Valor Bruto':        { number: it.valorBruto },
+      'Valor Recebido':     { number: it.valorItem },
+      'Desconto':           { number: it.descontoItem },
+      'Forma de Pagamento': { select: { name: job.pgto } },
+      'Data da Venda':      { date:   { start: job.dia } },
       'Canal':              { select: { name: 'Feira' } },
       'Tipo de Operação':   { select: { name: 'Venda' } },
       'Status Financeiro':  { select: { name: 'Recebido' } },
-      'ID da Transação':    { rich_text: [{ text:{ content: txnId } }] }
+      'ID da Transação':    { rich_text: [{ text:{ content: job.txn } }] }
     };
-    if (!isPnc) vProps['Disco (Estoque)'] = { relation: [{ id: item.pageId }] };
-    if (isPnc)  vProps['Origem / Propriedade'] = { select: { name: item.origem } };
+    if (!it.isPnc && it.pageId) vProps['Disco (Estoque)'] = { relation: [{ id: it.pageId }] };
+    if (it.isPnc && it.origem)  vProps['Origem / Propriedade'] = { select: { name: it.origem } };
     if (fileUploadId) vProps['Imagem PNC'] = { files: [{ type: 'file_upload', file_upload: { id: fileUploadId } }] };
-    if (pgto === 'Cartão Crédito' && parcelas > 1) vProps['Parcelas'] = { number: parcelas };
-    if (obs) vProps['Observações'] = { rich_text: [{ text:{ content: obs } }] };
+    if (job.pgto === 'Cartão Crédito' && job.parcelas > 1) vProps['Parcelas'] = { number: job.parcelas };
+    if (it.obs) vProps['Observações'] = { rich_text: [{ text:{ content: it.obs } }] };
+    if (job.comprador) vProps['Comprador'] = { rich_text: [{ text:{ content: job.comprador } }] };
 
-    var vendaResult = await nReq('POST', 'pages', {
-      parent: { database_id: DB_V },
-      properties: vProps
-    });
-
-    // Log de confirmação no console para debug
-    console.log('[PDV] Venda registrada:', isPnc ? 'PNC' : item.id, '→ Notion page', vendaResult.id);
+    await nReq('POST', 'pages', { parent: { database_id: DB_V }, properties: vProps });
+    job.done[i] = true;
+    console.log('[PDV] Venda registrada:', it.isPnc ? 'PNC' : it.id);
   }
+}
+
+// Erro de rede/proxy (deve ir pra fila) × erro do Notion (dados errados — mostrar)
+function isNetErr(e) { return String(e && e.message || e).indexOf('[Notion') !== 0; }
+
+// Tenta enviar; sem internet → guarda na fila do aparelho. Retorna {ok} | {queued} | {err}
+async function venderComFallback(job) {
+  try {
+    await enviarJob(job);
+    return { ok: true };
+  } catch(e) {
+    if (isNetErr(e)) {
+      var fila = lsGet('vnl_fila', []);
+      fila.push(job);
+      // Fotos PNC podem estourar o localStorage — se estourar, guarda sem foto
+      if (!lsSet('vnl_fila', fila)) {
+        job.itens.forEach(function(it){ delete it.fotoBase64; });
+        lsSet('vnl_fila', fila);
+      }
+      atualizaFilaBadge();
+      return { queued: true };
+    }
+    return { err: e.message };
+  }
+}
+
+// Marca como vendido no catálogo local (pra busca offline não oferecer disco já vendido)
+function marcarVendidoNoCache(job) {
+  var mudou = false;
+  job.itens.forEach(function(it) {
+    if (it.isPnc) return;
+    var num = parseInt(String(it.id).replace(/[^0-9]/g,''), 10);
+    var c = catalogo.find(function(x){ return x.cod === num; });
+    if (c) { c.st = 'Vendido'; mudou = true; }
+  });
+  if (mudou) lsSet('vnl_cat', catalogo);
+}
+
+// ════════════════════════════════════════
+// FILA OFFLINE — envia quando a internet volta
+// ════════════════════════════════════════
+function atualizaFilaBadge() {
+  var fila = lsGet('vnl_fila', []);
+  var b = document.getElementById('filaBadge');
+  if (fila.length > 0) { b.textContent = fila.length; b.classList.add('show'); }
+  else { b.textContent = ''; b.classList.remove('show'); }
+  var card = document.getElementById('filaCard');
+  if (!card) return;
+  if (fila.length > 0) {
+    var vendas = fila.filter(function(j){ return j.t === 'venda'; });
+    var total = vendas.reduce(function(s,j){ return s + j.itens.reduce(function(x,i){ return x+i.valorItem; },0); }, 0);
+    document.getElementById('filaQtd').textContent = fila.length;
+    document.getElementById('filaTotal').textContent = fmt(total);
+    card.style.display = 'block';
+  } else {
+    card.style.display = 'none';
+  }
+}
+
+async function flushFila(manual) {
+  if (flushing) return;
+  var fila = lsGet('vnl_fila', []);
+  if (!fila.length) { atualizaFilaBadge(); return; }
+  flushing = true;
+  if (manual) { var bf = document.getElementById('btnFlush'); if (bf) bf.disabled = true; }
+
+  var restantes = [];
+  var enviadas = 0;
+  for (var i = 0; i < fila.length; i++) {
+    var job = fila[i];
+    try {
+      await enviarJob(job);
+      enviadas++;
+    } catch(e) {
+      restantes.push(job); // mantém na fila (progresso parcial fica salvo em job.done)
+      // se caiu a rede de novo, não adianta insistir nos próximos agora
+      if (isNetErr(e)) { restantes = restantes.concat(fila.slice(i+1)); break; }
+    }
+    lsSet('vnl_fila', restantes.concat(fila.slice(i+1)));
+  }
+  lsSet('vnl_fila', restantes);
+  flushing = false;
+  atualizaFilaBadge();
+  if (manual) {
+    var bf2 = document.getElementById('btnFlush'); if (bf2) bf2.disabled = false;
+    if (enviadas > 0 && document.getElementById('scr-resumo').classList.contains('on')) renderResumo();
+  }
+  if (enviadas > 0) console.log('[PDV] Fila: '+enviadas+' registro(s) enviados.');
 }
 
 function esc(s){ return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
@@ -988,11 +1254,34 @@ function esc(s){ return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 // RESUMO — busca direto no Notion (persiste entre recarregamentos/dispositivos)
 // Agrupa por ID da Transação (pacote do carrinho) e por Origem + Forma de Pagamento (fechamento)
 // ════════════════════════════════════════
+var ultimasRows = []; // usado pelo botão "copiar fechamento"
+
+// Linhas pendentes (fila offline) do dia — entram no resumo mesmo sem internet
+function rowsDaFila() {
+  var hoje = hojeLocal();
+  var fila = lsGet('vnl_fila', []);
+  var out = [];
+  fila.forEach(function(job) {
+    if (job.t !== 'venda' || job.dia !== hoje) return;
+    job.itens.forEach(function(it, i) {
+      if (job.done[i]) return;
+      out.push({
+        titulo: '⏳ '+it.titulo, valor: it.valorItem, bruto: it.valorBruto,
+        pgto: job.pgto, origem: it.origem || '—', parcelas: job.parcelas,
+        txn: job.txn, desconto: it.descontoItem, pend: true
+      });
+    });
+  });
+  return out;
+}
+
 async function renderResumo() {
+  atualizaFilaBadge();
   document.getElementById('vendasLista').innerHTML = '<div class="empty">⏳ Carregando vendas de hoje...</div>';
   document.getElementById('fechamentoLista').innerHTML = '';
 
-  var hoje = new Date().toISOString().split('T')[0];
+  var hoje = hojeLocal();
+  var rows = [];
 
   try {
     var res = await nReq('POST', 'databases/'+DB_V+'/query', {
@@ -1000,7 +1289,7 @@ async function renderResumo() {
       page_size: 100
     });
 
-    var rows = (res.results || []).map(function(page) {
+    rows = (res.results || []).map(function(page) {
       var p = page.properties;
       function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
       function gtxt(f){ try{ return p[f].rich_text[0].plain_text; }catch(e){ return ''; } }
@@ -1013,22 +1302,37 @@ async function renderResumo() {
         pgto: gs('Forma de Pagamento'),
         origem: gs('Origem / Propriedade') || '—',
         parcelas: gn('Parcelas'),
-        txn: gtxt('ID da Transação') || page.id // fallback: registros antigos sem ID da Transação ficam cada um sozinho
+        desconto: gn('Desconto'),
+        txn: gtxt('ID da Transação') || page.id
       };
     });
-
-    renderResumoCards(rows);
-    renderVendasAgrupadas(rows);
-    renderFechamento(rows);
-
   } catch(e) {
-    document.getElementById('vendasLista').innerHTML = '<div class="empty">Erro ao carregar: '+e.message+'</div>';
+    document.getElementById('vendasLista').innerHTML = '<div class="empty">📴 Sem internet — mostrando só o que está no aparelho.</div>';
   }
+
+  rows = rows.concat(rowsDaFila());
+  ultimasRows = rows;
+
+  renderResumoCards(rows);
+  renderVendasAgrupadas(rows);
+  renderFechamento(rows);
+}
+
+// Margem estimada: cruza o VNL-id do título da venda com o custo no catálogo local
+function margemEstimada(rows) {
+  if (!catalogo.length) return null;
+  var soma = 0, achou = false;
+  rows.forEach(function(v) {
+    var m = String(v.titulo).match(/VNL-(\d+)/);
+    if (!m) return;
+    var c = catalogo.find(function(x){ return x.cod === parseInt(m[1],10); });
+    if (c) { soma += v.valor - (c.cu||0); achou = true; }
+  });
+  return achou ? soma : null;
 }
 
 function renderResumoCards(rows) {
   var bruto = rows.reduce(function(s,v){ return s+v.valor; }, 0);
-  // Agrupa por transação só para contar "vendas" como pacotes, não discos individuais
   var txns = {};
   rows.forEach(function(v){ txns[v.txn] = true; });
   var qtdTransacoes = Object.keys(txns).length;
@@ -1038,7 +1342,61 @@ function renderResumoCards(rows) {
   document.getElementById('rBruto').textContent  = fmt(bruto);
   document.getElementById('rQtd').textContent    = qtdDiscos + (qtdTransacoes!==qtdDiscos ? ' ('+qtdTransacoes+' vendas)' : '');
   document.getElementById('rTicket').textContent = fmt(ticket);
-  document.getElementById('rMargem').textContent = '—'; // margem real depende de custo por disco; ver Notion para detalhe
+  var mg = margemEstimada(rows);
+  document.getElementById('rMargem').textContent = mg === null ? '—' : '≈ '+fmt(mg);
+}
+
+// Gera o texto do fechamento pronto pra colar (WhatsApp / caderno / Notion)
+function copiarFechamento() {
+  var rows = ultimasRows;
+  if (!rows.length) { showAle('aC','ae','Nada pra copiar ainda.'); return; }
+  var d = new Date();
+  var dataBr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+
+  var total = rows.reduce(function(s,v){ return s+v.valor; },0);
+  var descTot = rows.reduce(function(s,v){ return s+(v.desconto||0); },0);
+  var txns = {}; rows.forEach(function(v){ txns[v.txn]=true; });
+  var pend = rows.filter(function(v){ return v.pend; }).length;
+
+  var grupos = {};
+  rows.forEach(function(v) {
+    if (!grupos[v.origem]) grupos[v.origem] = {};
+    var k = v.pgto || 'Outro';
+    grupos[v.origem][k] = (grupos[v.origem][k]||0) + v.valor;
+  });
+
+  var pgtos = {};
+  rows.forEach(function(v){ var k = v.pgto||'Outro'; pgtos[k] = (pgtos[k]||0)+v.valor; });
+
+  var txt = '📀 FECHAMENTO FEIRA — '+dataBr+'\n';
+  txt += '━━━━━━━━━━━━━━━━━━\n';
+  txt += 'Total: '+fmt(total)+' · '+rows.length+' disco(s) · '+Object.keys(txns).length+' venda(s)\n';
+  if (descTot > 0) txt += 'Descontos dados: '+fmt(descTot)+'\n';
+  var mg = margemEstimada(rows);
+  if (mg !== null) txt += 'Margem estimada: '+fmt(mg)+'\n';
+  txt += '\n💳 Por pagamento:\n';
+  Object.keys(pgtos).forEach(function(k){ txt += '  '+k+': '+fmt(pgtos[k])+'\n'; });
+  txt += '\n👥 Por origem (repasse):\n';
+  Object.keys(grupos).forEach(function(o) {
+    var tot = Object.keys(grupos[o]).reduce(function(s,k){ return s+grupos[o][k]; },0);
+    txt += '  '+o+': '+fmt(tot);
+    var det = Object.keys(grupos[o]).map(function(k){ return k+' '+fmt(grupos[o][k]); }).join(' · ');
+    txt += ' ('+det+')\n';
+  });
+  if (pend > 0) txt += '\n⏳ Atenção: '+pend+' registro(s) ainda no aparelho, aguardando internet.\n';
+
+  var btn = document.getElementById('btnCopiarFech');
+  function feito() { btn.textContent = '✓ Copiado!'; setTimeout(function(){ btn.textContent = '📋 Copiar fechamento do dia'; }, 2000); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(feito).catch(function(){ copiaFallback(txt); feito(); });
+  } else { copiaFallback(txt); feito(); }
+}
+function copiaFallback(txt) {
+  var ta = document.createElement('textarea');
+  ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
 }
 
 function renderVendasAgrupadas(rows) {
@@ -1100,6 +1458,246 @@ function renderFechamento(rows) {
   });
   document.getElementById('fechamentoLista').innerHTML = html;
 }
+
+// ════════════════════════════════════════
+// CATÁLOGO — estoque inteiro no aparelho, busca instantânea e offline
+// ════════════════════════════════════════
+async function sincronizarCatalogo(manual) {
+  var btn = document.getElementById('btnSync');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Baixando…'; }
+  if (manual) showAle('aCload','al','Baixando catálogo do Notion…');
+
+  try {
+    var novo = [];
+    var cursor = null;
+    do {
+      var body = { page_size: 100 };
+      if (cursor) body.start_cursor = cursor;
+      var res = await nReq('POST', 'databases/'+DB_E+'/query', body);
+      (res.results || []).forEach(function(page) {
+        var p = page.properties;
+        function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
+        function gr(f){ try{ return p[f].rich_text.map(function(x){return x.plain_text;}).join(''); }catch(e){ return ''; } }
+        function gs(f){ try{ return p[f].select.name; }catch(e){ return ''; } }
+        function gms(f){ try{ return p[f].multi_select.map(function(x){ return x.name; }).join(', '); }catch(e){ return ''; } }
+        function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
+        var cod = 0;
+        try { cod = p['Código'].unique_id.number; } catch(e) {}
+        var ar = gt('Título/Artista/Banda');
+        var al = gr('Álbum');
+        novo.push({
+          cod: cod, ar: ar, al: al,
+          pr: gn('Preço Final'), cu: gn('Valor de Custo'),
+          st: gs('Status') || 'Disponível', lo: gms('Localização'),
+          cd: gs('Condição DISCO'), ct: gs('Categoria'), og: gs('Origem / Propriedade'),
+          es: gms('Estilo'), pid: page.id,
+          n: normTxt(ar+' '+al+' vnl-'+cod+' '+cod) // string de busca pré-calculada
+        });
+      });
+      cursor = res.has_more ? res.next_cursor : null;
+    } while (cursor);
+
+    catalogo = novo;
+    lsSet('vnl_cat', catalogo);
+    lsSet('vnl_cat_ts', Date.now());
+    atualizaCatInfo();
+    renderCatalogo();
+    hideAle('aCload');
+    if (manual) showAle('aCok','ao','✓ Catálogo atualizado: '+catalogo.length+' discos no aparelho. Busca funciona até sem internet.');
+  } catch(e) {
+    hideAle('aCload');
+    if (manual) showAle('aC','ae','Não deu pra baixar agora: '+e.message+(catalogo.length ? '<br/>Seguindo com o catálogo antigo ('+catalogo.length+' discos).' : ''));
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
+}
+
+function atualizaCatInfo() {
+  var el = document.getElementById('catInfo');
+  var btn = document.getElementById('btnSync');
+  var ts = lsGet('vnl_cat_ts', null);
+  if (!catalogo.length) {
+    el.textContent = 'Catálogo ainda não baixado';
+    if (btn) btn.textContent = '↓ Baixar catálogo';
+    return;
+  }
+  var quando = '';
+  if (ts) {
+    var min = Math.round((Date.now()-ts)/60000);
+    quando = min < 60 ? min+' min atrás' : (min < 2880 ? Math.round(min/60)+'h atrás' : Math.round(min/1440)+' dias atrás');
+  }
+  var disp = catalogo.filter(function(c){ return c.st === 'Disponível'; }).length;
+  el.textContent = catalogo.length+' discos ('+disp+' disp.) · '+quando;
+  if (btn) btn.textContent = '↻ Atualizar';
+}
+
+function setCatFiltro(f, btn) {
+  catFiltro = f;
+  document.querySelectorAll('.fchip').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  renderCatalogo();
+}
+
+function renderCatalogo() {
+  var out = document.getElementById('catResultados');
+  if (!catalogo.length) {
+    out.innerHTML = '<div class="empty">Toque em "↓ Baixar catálogo" (com internet) uma vez.<br/>Depois a busca funciona offline o dia todo.</div>';
+    return;
+  }
+  var q = normTxt(document.getElementById('catBusca').value.trim());
+  var lista = catalogo;
+  if (catFiltro !== 'todos') lista = lista.filter(function(c){ return c.st === catFiltro; });
+
+  if (q) {
+    var tokens = q.split(/\s+/).filter(Boolean);
+    lista = lista.filter(function(c) {
+      return tokens.every(function(t){ return c.n.indexOf(t) !== -1; });
+    });
+  }
+
+  if (!lista.length) {
+    out.innerHTML = '<div class="empty">Nenhum disco encontrado'+(q ? ' pra "'+esc(document.getElementById('catBusca').value)+'"' : '')+'.<br/>👇 Anota o pedido do cliente pra caçar depois!</div>';
+    return;
+  }
+
+  var MAXR = 60;
+  var html = '';
+  // Disponíveis primeiro
+  lista = lista.slice().sort(function(a,b) {
+    var pa = a.st === 'Disponível' ? 0 : (a.st === 'Reservado' ? 1 : 2);
+    var pb = b.st === 'Disponível' ? 0 : (b.st === 'Reservado' ? 1 : 2);
+    return pa - pb;
+  });
+  lista.slice(0, MAXR).forEach(function(c) {
+    var chip = c.st === 'Disponível' ? 'chip-gr' : (c.st === 'Vendido' ? 'chip-re' : (c.st === 'Reservado' ? 'chip-ye' : 'chip-gy'));
+    var meta = ['VNL-'+c.cod, c.lo, c.cd].filter(function(x){ return x && x !== '—'; }).join(' · ');
+    html += '<div class="cat-row" onclick="catAbrir('+c.cod+')">'+
+      '<div class="cat-info">'+
+        '<div class="cat-art">'+esc(c.ar || '(sem título)')+'</div>'+
+        (c.al ? '<div class="cat-alb">'+esc(c.al)+'</div>' : '')+
+        '<div class="cat-meta">'+esc(meta)+'</div>'+
+      '</div>'+
+      '<div class="cat-right">'+
+        '<div class="cat-preco">'+fmt(c.pr)+'</div>'+
+        '<span class="chip '+chip+'">'+esc(c.st)+'</span>'+
+      '</div>'+
+    '</div>';
+  });
+  if (lista.length > MAXR) html += '<div class="empty" style="padding:12px">… e mais '+(lista.length-MAXR)+'. Refine a busca.</div>';
+  out.innerHTML = html;
+}
+
+// Toca num disco do catálogo → abre direto na tela de venda
+function catAbrir(cod) {
+  var c = catalogo.find(function(x){ return x.cod === cod; });
+  if (c && c.st === 'Vendido') { showAle('aC','ae','VNL-'+cod+' já foi vendido.'); setTimeout(function(){ hideAle('aC'); }, 2500); return; }
+  document.getElementById('idInput').value = String(cod);
+  goScr('vender', document.getElementById('nav-vender'));
+  buscar();
+}
+
+// ════════════════════════════════════════
+// PEDIDOS & WANTS — CRM de feira
+// ════════════════════════════════════════
+function abrirPedido() {
+  var card = document.getElementById('pedidoCard');
+  card.style.display = 'block';
+  var busca = document.getElementById('catBusca').value.trim();
+  if (busca && !document.getElementById('pedDisco').value) document.getElementById('pedDisco').value = busca;
+  setTimeout(function(){ card.scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
+}
+function fecharPedido() {
+  document.getElementById('pedidoCard').style.display = 'none';
+  ['pedDisco','pedNome','pedZap','pedObs'].forEach(function(id){ document.getElementById(id).value = ''; });
+  pedPrio = '🟡 Média';
+  document.querySelectorAll('#pedidoCard .sel-btn').forEach(function(b,i){ b.classList.toggle('sel', i===1); });
+}
+function selPedPrio(p, btn) {
+  pedPrio = p;
+  document.querySelectorAll('#pedidoCard .sel-btn').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+}
+
+async function enviarPedido(job) {
+  var clienteId = null;
+  // Cria/registra a pessoa se tiver nome (CRM)
+  if (job.nome) {
+    var peProps = {
+      'Nome': { title: [{ text: { content: job.nome } }] },
+      'Tipo': { multi_select: [{ name: 'Cliente' }] },
+      'Status': { select: { name: 'Ativo' } },
+      'Observações': { rich_text: [{ text: { content: 'Conheci na feira em '+job.dia.split('-').reverse().join('/') } }] }
+    };
+    if (job.zap) peProps['WhatsApp'] = { phone_number: job.zap };
+    var pe = await nReq('POST', 'pages', { parent: { database_id: DB_PE }, properties: peProps });
+    clienteId = pe.id;
+  }
+
+  var obs = [];
+  if (job.nome) obs.push('Cliente: '+job.nome);
+  if (job.zap) obs.push('WhatsApp: '+job.zap);
+  if (job.obs) obs.push(job.obs);
+
+  var props = {
+    'Artista / Álbum': { title: [{ text: { content: job.disco } }] },
+    'Canal de Origem': { select: { name: 'Feira' } },
+    'Status': { select: { name: 'Aberto' } },
+    'Prioridade': { select: { name: job.prio } },
+    'Data do Pedido': { date: { start: job.dia } }
+  };
+  if (obs.length) props['Observação'] = { rich_text: [{ text: { content: obs.join(' | ') } }] };
+  if (clienteId) props['Cliente'] = { relation: [{ id: clienteId }] };
+
+  await nReq('POST', 'pages', { parent: { database_id: DB_P }, properties: props });
+}
+
+async function salvarPedido() {
+  var disco = document.getElementById('pedDisco').value.trim();
+  if (!disco) { showAle('aC','ae','Escreva pelo menos o artista/álbum procurado.'); return; }
+  var job = {
+    t: 'pedido', dia: hojeLocal(),
+    disco: disco,
+    nome: document.getElementById('pedNome').value.trim(),
+    zap: document.getElementById('pedZap').value.trim(),
+    obs: document.getElementById('pedObs').value.trim(),
+    prio: pedPrio
+  };
+  document.getElementById('btnSalvarPedido').disabled = true;
+  showAle('aCload','al','Salvando pedido…');
+  try {
+    await enviarPedido(job);
+    hideAle('aCload');
+    showAle('aCok','ao','✓ Pedido anotado no Notion (Pedidos & Wants)'+(job.nome ? ' e cliente salvo em Pessoas' : '')+'.');
+    fecharPedido();
+  } catch(e) {
+    hideAle('aCload');
+    if (isNetErr(e)) {
+      var fila = lsGet('vnl_fila', []);
+      fila.push(job);
+      lsSet('vnl_fila', fila);
+      atualizaFilaBadge();
+      showAle('aCok','aw','📴 Sem internet — pedido guardado no aparelho, sobe quando a rede voltar.');
+      fecharPedido();
+    } else {
+      showAle('aC','ae','Erro ao salvar pedido: '+e.message);
+    }
+  }
+  document.getElementById('btnSalvarPedido').disabled = false;
+}
+
+// ════════════════════════════════════════
+// INICIALIZAÇÃO
+// ════════════════════════════════════════
+window.addEventListener('load', function() {
+  restoreCart();          // carrinho sobrevive a refresh
+  atualizaFilaBadge();    // mostra vendas pendentes de envio
+  flushFila(false);       // tenta enviar o que ficou pendente
+  atualizaCatInfo();
+  // Atualiza o catálogo sozinho se estiver velho (>6h) e tiver internet
+  var ts = lsGet('vnl_cat_ts', null);
+  if (navigator.onLine && (!ts || Date.now()-ts > 6*3600*1000)) sincronizarCatalogo(false);
+});
+window.addEventListener('online', function() { flushFila(false); });
 </script>
+<!-- PDV Feira de Vinil v2 — catálogo offline, fila anti-perda, fechamento e wants -->
 </body>
 </html>
