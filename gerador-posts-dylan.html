@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dylan Discos — Gerador de Posts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#111010; --panel:#1a1818; --panel2:#221f1f; --border:#2e2a2a;
+    --text:#efeceb; --muted:#8d8686; --red:#e11d2e; --red-dark:#a3121f;
+    --green:#22c55e; --serif:'Playfair Display',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;padding:28px 20px 60px}
+  h1{font-family:var(--serif);text-align:center;font-size:26px;letter-spacing:.28em;font-weight:800}
+  h1 .accent{color:var(--red)}
+  .sub{color:var(--muted);text-align:center;font-size:11px;letter-spacing:.34em;margin:6px 0 30px;text-transform:uppercase}
+  .wrap{display:flex;gap:34px;justify-content:center;align-items:flex-start;flex-wrap:wrap;max-width:1180px;margin:0 auto}
+  .form{width:340px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:22px}
+  label{display:block;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:10px 12px;font-size:14px;font-family:var(--sans)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--red)}
+  textarea{resize:vertical;min-height:84px;line-height:1.45}
+  .row{display:flex;gap:10px}.row>div{flex:1}
+  .vnl-box{display:flex;gap:8px;background:#191414;border:1px dashed var(--red);border-radius:6px;padding:12px;margin-bottom:6px}
+  .vnl-box input{flex:1;font-size:18px;font-weight:600;text-align:center;letter-spacing:.1em}
+  .btn{border:none;border-radius:6px;cursor:pointer;font-family:var(--sans);font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px;padding:13px 14px;width:100%;margin-top:12px;transition:filter .15s}
+  .btn:hover{filter:brightness(1.15)}
+  .btn-red{background:var(--red);color:#fff}
+  .btn-outline{background:transparent;color:var(--red);border:1px solid var(--red)}
+  .btn-ghost{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+  .btn-sm{width:auto;padding:10px 14px;margin-top:0}
+  .status{font-size:12px;margin-top:8px;min-height:16px;color:var(--muted)}
+  .status.ok{color:var(--green)} .status.err{color:var(--red)}
+  .divider{border-top:1px solid var(--border);margin:20px 0 4px}
+  .src-btns{display:flex;gap:8px;margin-top:8px}
+  .src-btns .btn{margin-top:0;font-size:10px;padding:10px 6px}
+  /* preview */
+  .stage{width:min(560px,94vw)}
+  canvas#preview{width:100%;border-radius:4px;cursor:grab;touch-action:none;display:block;background:#000}
+  canvas#preview:active{cursor:grabbing}
+  .stage .hint{color:var(--muted);font-size:11px;letter-spacing:.2em;text-align:center;text-transform:uppercase;margin-top:10px}
+  .sliders{margin-top:16px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 18px}
+  .sliders .sl{display:flex;align-items:center;gap:12px;margin:8px 0}
+  .sliders .sl span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);width:78px}
+  .sliders input[type=range]{flex:1;accent-color:var(--red);padding:0;background:transparent;border:none}
+  .sliders .val{width:46px;text-align:right;font-size:12px;color:var(--text)}
+  /* modal QR */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.open{display:flex}
+  .modal .box{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:28px;text-align:center;max-width:340px}
+  .modal .box h3{font-family:var(--serif);letter-spacing:.12em;margin-bottom:6px}
+  .modal .box p{color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:16px}
+  #qrcode{background:#fff;padding:12px;border-radius:8px;display:inline-block}
+  .sess{font-size:22px;letter-spacing:.3em;color:var(--red);font-weight:700;margin:12px 0 4px}
+  /* mobile capture mode */
+  .mob{max-width:380px;margin:8vh auto;text-align:center}
+  .mob .big{display:block;background:var(--red);color:#fff;border-radius:14px;padding:34px 20px;font-size:20px;font-weight:700;letter-spacing:.08em;margin-top:26px;cursor:pointer}
+  .mob img.thumb{max-width:100%;border-radius:10px;margin-top:20px;border:1px solid var(--border)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ══════════ MODO PC: GERADOR ══════════ -->
+<div id="desktop">
+  <h1>🐾 DYLAN <span class="accent">DISCOS</span></h1>
+  <div class="sub">Gerador de Posts — Instagram</div>
+
+  <div class="wrap">
+    <!-- FORMULÁRIO -->
+    <div class="form">
+      <label>Código VNL (busca no estoque)</label>
+      <div class="vnl-box">
+        <input id="vnl" type="number" placeholder="ex. 401" min="1"/>
+        <button class="btn btn-red btn-sm" onclick="buscarVNL()">Buscar</button>
+      </div>
+      <div class="status" id="vnlStatus"></div>
+
+      <label>Foto do disco</label>
+      <div class="src-btns">
+        <button class="btn btn-ghost" onclick="document.getElementById('file').click()">📁 Arquivo</button>
+        <button class="btn btn-ghost" onclick="abrirQR()">📱 Celular</button>
+        <button class="btn btn-ghost" id="btnCapa" onclick="usarCapaEstoque()" disabled>💿 Estoque</button>
+      </div>
+      <input type="file" id="file" accept="image/*" class="hidden"/>
+      <div class="status" id="fotoStatus"></div>
+
+      <div class="divider"></div>
+
+      <label>Tipo de mídia</label>
+      <select id="tipo">
+        <option>Vinil</option><option>Picture Disc</option><option>CD</option>
+        <option>Box Set</option><option>Compacto</option><option>EP</option><option>VHS</option>
+      </select>
+
+      <label>Artista / Banda</label>
+      <input id="artista" placeholder="Aerosmith"/>
+
+      <label>Álbum</label>
+      <input id="album" placeholder="Rock in a Hard Place"/>
+
+      <div class="row">
+        <div><label>Ano</label><input id="ano" placeholder="1982"/></div>
+        <div><label>Gravadora / Selo</label><input id="selo" placeholder="CBS"/></div>
+      </div>
+
+      <div class="row">
+        <div><label>Condição</label>
+          <select id="cond">
+            <option>M</option><option>NM</option><option selected>VG+</option>
+            <option>VG</option><option>G</option><option>F</option>
+          </select>
+        </div>
+        <div><label>Preço (R$)</label><input id="preco" placeholder="100,00"/></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <label>Detalhes (linha 2 da legenda)</label>
+      <input id="detalhes" placeholder="Sem Detalhes / Novo - Importado (Alemanha)"/>
+
+      <label>Curiosidade (escreva a sua)</label>
+      <textarea id="curiosidade" placeholder="👑 Um dos maiores álbuns conceituais da história do Heavy Metal..."></textarea>
+
+      <button class="btn btn-outline" onclick="copiarPrompt()">📋 Copiar prompt p/ pesquisar curiosidade</button>
+      <button class="btn btn-red" onclick="copiarLegenda()">📄 Copiar legenda completa</button>
+      <button class="btn btn-red" onclick="baixar()">⬇️ Baixar imagem (1080×1080)</button>
+      <div class="status" id="copyStatus"></div>
+    </div>
+
+    <!-- PREVIEW + EDITOR -->
+    <div class="stage">
+      <canvas id="preview" width="1080" height="1080"></canvas>
+      <div class="hint">Preview 1080 × 1080 px — arraste a foto p/ posicionar · scroll = zoom</div>
+      <div class="sliders">
+        <div class="sl"><span>Zoom</span><input type="range" id="zoom" min="1" max="3" step="0.01" value="1"/><div class="val" id="zoomVal">1.0×</div></div>
+        <div class="sl"><span>Rotação</span><input type="range" id="rot" min="-15" max="15" step="0.1" value="0"/><div class="val" id="rotVal">0°</div></div>
+        <div class="sl"><span></span><button class="btn btn-ghost btn-sm" onclick="resetFoto()">↺ Centralizar / Reset</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL QR -->
+<div class="modal" id="qrModal">
+  <div class="box">
+    <h3>📱 Foto pelo celular</h3>
+    <p>Escaneie com a câmera do celular.<br/>A foto aparece aqui sozinha — nada fica salvo no aparelho.</p>
+    <div id="qrcode"></div>
+    <div class="sess" id="sessCode"></div>
+    <p id="pollStatus" style="margin-top:10px">Aguardando foto…</p>
+    <button class="btn btn-ghost" onclick="fecharQR()">Fechar</button>
+  </div>
+</div>
+
+<!-- ══════════ MODO CELULAR: CAPTURA ══════════ -->
+<div id="mobile" class="mob hidden">
+  <h1>🐾 DYLAN <span class="accent">DISCOS</span></h1>
+  <div class="sub">Enviar foto — sessão <span id="mobSess" style="color:var(--red)"></span></div>
+  <label class="big" for="mobCam">📷 Tirar foto do disco</label>
+  <input type="file" id="mobCam" accept="image/*" capture="environment" class="hidden"/>
+  <div class="status" id="mobStatus" style="font-size:15px;margin-top:18px"></div>
+  <img class="thumb hidden" id="mobThumb"/>
+</div>
+
+<script>
+const WORKER = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev';
+
+/* ═══════════ MODO: PC ou CELULAR? ═══════════ */
+const params = new URLSearchParams(location.search);
+const fotoSession = params.get('foto');
+if (fotoSession) { initMobile(fotoSession); } else { initDesktop(); }
+
+/* ═══════════════════ CELULAR ═══════════════════ */
+function initMobile(code){
+  document.getElementById('desktop').classList.add('hidden');
+  const mob = document.getElementById('mobile');
+  mob.classList.remove('hidden');
+  document.getElementById('mobSess').textContent = code.toUpperCase();
+  const st = document.getElementById('mobStatus');
+
+  document.getElementById('mobCam').addEventListener('change', async (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    st.textContent = '⏳ Comprimindo e enviando…'; st.className='status';
+    try{
+      const blob = await comprimir(f, 1600, .85);
+      const res = await fetch(`${WORKER}/v1/foto/${code}`, {
+        method:'POST', headers:{'Content-Type':'image/jpeg'}, body: blob
+      });
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      st.textContent = '✅ Foto enviada! Confira no PC. Pode tirar outra se quiser.';
+      st.className='status ok';
+      const t = document.getElementById('mobThumb');
+      t.src = URL.createObjectURL(blob); t.classList.remove('hidden');
+    }catch(err){ st.textContent='❌ Falha no envio: '+err.message; st.className='status err'; }
+    e.target.value='';
+  });
+}
+
+async function comprimir(file, maxDim, q){
+  const img = await lerImagem(file);
+  const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, 'image/jpeg', q));
+}
+
+async function lerImagem(fileOrBlob){
+  if (window.createImageBitmap){
+    try { return await createImageBitmap(fileOrBlob, {imageOrientation:'from-image'}); } catch(e){}
+  }
+  return new Promise((res, rej)=>{
+    const i = new Image();
+    i.onload = ()=>res(i); i.onerror = rej;
+    i.src = URL.createObjectURL(fileOrBlob);
+  });
+}
+
+/* ═══════════════════ PC / GERADOR ═══════════════════ */
+let foto = null;                       // ImageBitmap/Image atual
+let pan = {x:0, y:0}, zoom = 1, rot = 0;
+let dados = { imagemEstoque: null };
+let pollTimer = null;
+
+function initDesktop(){
+  const cv = document.getElementById('preview');
+
+  // redesenha quando qualquer campo muda
+  ['tipo','artista','album','ano','selo','cond','preco'].forEach(id=>
+    document.getElementById(id).addEventListener('input', desenhar));
+
+  // sliders
+  const zEl = document.getElementById('zoom'), rEl = document.getElementById('rot');
+  zEl.addEventListener('input', ()=>{ zoom=+zEl.value; document.getElementById('zoomVal').textContent=zoom.toFixed(1)+'×'; desenhar(); });
+  rEl.addEventListener('input', ()=>{ rot=+rEl.value; document.getElementById('rotVal').textContent=rot.toFixed(0)+'°'; desenhar(); });
+
+  // upload de arquivo
+  document.getElementById('file').addEventListener('change', async e=>{
+    const f = e.target.files[0]; if(!f) return;
+    foto = await lerImagem(f); resetFoto();
+    setStatus('fotoStatus','✅ Foto carregada do arquivo','ok');
+    e.target.value='';
+  });
+
+  // arrastar (mouse + toque)
+  let drag = null;
+  cv.addEventListener('pointerdown', e=>{ drag={x:e.clientX,y:e.clientY}; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e=>{
+    if(!drag || !foto) return;
+    const k = 1080 / cv.getBoundingClientRect().width;
+    pan.x += (e.clientX-drag.x)*k; pan.y += (e.clientY-drag.y)*k;
+    drag={x:e.clientX,y:e.clientY}; desenhar();
+  });
+  cv.addEventListener('pointerup', ()=>drag=null);
+  cv.addEventListener('wheel', e=>{
+    if(!foto) return; e.preventDefault();
+    zoom = Math.min(3, Math.max(1, zoom + (e.deltaY<0 ? .06 : -.06)));
+    zEl.value = zoom; document.getElementById('zoomVal').textContent=zoom.toFixed(1)+'×';
+    desenhar();
+  }, {passive:false});
+
+  // ENTER no campo VNL busca
+  document.getElementById('vnl').addEventListener('keydown', e=>{ if(e.key==='Enter') buscarVNL(); });
+
+  document.fonts.ready.then(desenhar);
+  desenhar();
+}
+
+function resetFoto(){ pan={x:0,y:0}; zoom=1; rot=0;
+  document.getElementById('zoom').value=1; document.getElementById('rot').value=0;
+  document.getElementById('zoomVal').textContent='1.0×'; document.getElementById('rotVal').textContent='0°';
+  desenhar();
+}
+
+function setStatus(id,msg,cls){ const el=document.getElementById(id); el.textContent=msg; el.className='status '+(cls||''); }
+
+/* ─────────── VNL → Estoque ─────────── */
+async function buscarVNL(){
+  const cod = document.getElementById('vnl').value;
+  if(!cod) return setStatus('vnlStatus','Digite um código.','err');
+  setStatus('vnlStatus','⏳ Buscando no Estoque…');
+  try{
+    const res = await fetch(`${WORKER}/v1/vnl?codigo=${cod}`);
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error==='not_found' ? `Código ${cod} não existe no Estoque` : (d.error||'erro'));
+    dados = d;
+    document.getElementById('artista').value = d.artista || '';
+    document.getElementById('album').value   = d.album || d.artista || '';
+    document.getElementById('ano').value     = d.ano || '';
+    document.getElementById('selo').value    = d.selo || '';
+    document.getElementById('preco').value   = d.preco != null ? String(d.preco).replace('.',',') : '';
+    // condição abreviada (pega a sigla antes do " - ")
+    const sigla = (d.condicaoDisco||'').split(' ')[0];
+    if(sigla) document.getElementById('cond').value = ['M','NM','VG+','VG','G','F'].includes(sigla) ? sigla : 'VG+';
+    // tipo de mídia
+    if(d.categoria==='Picture Disc') document.getElementById('tipo').value='Picture Disc';
+    else if(d.categoria==='CD') document.getElementById('tipo').value='CD';
+    else if(d.categoria==='Box Set') document.getElementById('tipo').value='Box Set';
+    else if((d.categoria||'').startsWith('Compacto')) document.getElementById('tipo').value='Compacto';
+    else if(d.categoria==='EP') document.getElementById('tipo').value='EP';
+    else document.getElementById('tipo').value='Vinil';
+    // detalhes automáticos: "Capa VG+ / Disco NM - Original (Brasil)"
+    const capa=(d.condicaoCapa||'').split(' ')[0], disco=(d.condicaoDisco||'').split(' ')[0];
+    let det = [];
+    if(capa||disco) det.push(`Capa ${capa||'?'} / Disco ${disco||'?'}`);
+    if(d.prensagem) det.push(d.prensagem + (d.origem?` (${d.origem})`:''));
+    document.getElementById('detalhes').value = det.join(' - ');
+    // capa do estoque
+    document.getElementById('btnCapa').disabled = !d.imagem;
+    let aviso = d.status && d.status!=='Disponível' ? ` ⚠️ status: ${d.status}` : '';
+    setStatus('vnlStatus',`✅ ${d.artista} — ${d.album||''}${aviso}`, d.status==='Disponível'||!d.status ? 'ok':'err');
+    desenhar();
+  }catch(err){ setStatus('vnlStatus','❌ '+err.message,'err'); }
+}
+
+async function usarCapaEstoque(){
+  if(!dados.imagem) return;
+  setStatus('fotoStatus','⏳ Baixando capa do estoque…');
+  try{
+    const res = await fetch(`${WORKER}/v1/img-proxy?u=${encodeURIComponent(dados.imagem)}`);
+    if(!res.ok) throw new Error('proxy HTTP '+res.status+' (domínio permitido no Worker?)');
+    foto = await lerImagem(await res.blob()); resetFoto();
+    setStatus('fotoStatus','✅ Capa do estoque carregada','ok');
+  }catch(err){ setStatus('fotoStatus','❌ '+err.message,'err'); }
+}
+
+/* ─────────── Foto via QR / celular ─────────── */
+function novoCodigo(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='';
+  for(let i=0;i<5;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+
+let sess = null;
+function abrirQR(){
+  if(location.protocol==='file:'){
+    setStatus('fotoStatus','⚠️ O QR só funciona com a página hospedada (GitHub Pages), não em file://','err');
+    return;
+  }
+  sess = novoCodigo();
+  const link = `${location.origin}${location.pathname}?foto=${sess}`;
+  document.getElementById('qrcode').innerHTML='';
+  new QRCode(document.getElementById('qrcode'), {text:link, width:196, height:196});
+  document.getElementById('sessCode').textContent = sess;
+  document.getElementById('pollStatus').textContent = 'Aguardando foto…';
+  document.getElementById('qrModal').classList.add('open');
+  clearInterval(pollTimer);
+  pollTimer = setInterval(checarFoto, 2500);
+}
+function fecharQR(){ document.getElementById('qrModal').classList.remove('open'); clearInterval(pollTimer); }
+
+async function checarFoto(){
+  if(!sess) return;
+  try{
+    const res = await fetch(`${WORKER}/v1/foto/${sess}`);
+    if(res.status===404) return; // ainda nada
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const blob = await res.blob();
+    foto = await lerImagem(blob); resetFoto();
+    fetch(`${WORKER}/v1/foto/${sess}`, {method:'DELETE'}); // limpeza
+    fecharQR();
+    setStatus('fotoStatus','✅ Foto recebida do celular!','ok');
+  }catch(err){ document.getElementById('pollStatus').textContent='Erro: '+err.message; }
+}
+
+/* ─────────── DESENHO DO POST 1080×1080 ─────────── */
+const RED='#e11d2e', BOX={x:54,y:54,w:972,h:972};
+function desenhar(){
+  const cv=document.getElementById('preview'), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,1080,1080);
+
+  // fundo preto texturizado
+  ctx.fillStyle='#0b0a0a'; ctx.fillRect(0,0,1080,1080);
+  ctx.save(); ctx.globalAlpha=.05; ctx.strokeStyle='#fff';
+  for(let r=80;r<760;r+=26){ ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI/2); ctx.stroke(); }
+  ctx.restore();
+
+  // foto (recortada na área central)
+  if(foto){
+    ctx.save();
+    ctx.beginPath(); ctx.rect(BOX.x,BOX.y,BOX.w,BOX.h); ctx.clip();
+    const s0=Math.max(BOX.w/foto.width, BOX.h/foto.height), s=s0*zoom;
+    ctx.translate(BOX.x+BOX.w/2+pan.x, BOX.y+BOX.h/2+pan.y);
+    ctx.rotate(rot*Math.PI/180);
+    ctx.drawImage(foto, -foto.width*s/2, -foto.height*s/2, foto.width*s, foto.height*s);
+    // gradiente de leitura na base
+    ctx.restore(); ctx.save();
+    ctx.beginPath(); ctx.rect(BOX.x,BOX.y,BOX.w,BOX.h); ctx.clip();
+    const g=ctx.createLinearGradient(0,700,0,1026);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.86)');
+    ctx.fillStyle=g; ctx.fillRect(BOX.x,700,BOX.w,326);
+    ctx.restore();
+  } else {
+    ctx.fillStyle='#161313'; ctx.fillRect(BOX.x,BOX.y,BOX.w,BOX.h);
+    ctx.fillStyle='#3a3434'; ctx.font='600 30px Inter'; ctx.textAlign='center';
+    ctx.fillText('— sem foto —', 540, 552);
+  }
+
+  // moldura pontilhada vermelha + marcas de corte
+  ctx.strokeStyle=RED; ctx.lineWidth=2; ctx.setLineDash([7,9]);
+  ctx.strokeRect(40,40,1000,1000); ctx.setLineDash([]);
+  ctx.fillStyle=RED;
+  [[22,22],[1058,22],[22,1058],[1058,1058]].forEach(([x,y])=>{ ctx.beginPath(); ctx.arc(x,y,7,0,7); ctx.fill(); });
+  [[540,16,'h'],[540,1064,'h'],[16,540,'v'],[1064,540,'v']].forEach(([x,y,o])=>{
+    ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4);
+    ctx.fillRect(-8,-2,16,4); ctx.fillRect(-2,-8,4,16); ctx.restore();
+  });
+
+  const V=v=>document.getElementById(v).value.trim();
+
+  // badge tipo de mídia (topo esq)
+  const tipo=(V('tipo')||'VINIL').toUpperCase();
+  ctx.font='700 34px "Playfair Display"';
+  const tw=ctx.measureText(tipo).width+52;
+  ctx.fillStyle=RED; ctx.fillRect(80,84,tw,58);
+  ctx.fillStyle='#fff'; ctx.textAlign='left'; ctx.textBaseline='middle';
+  drawSpaced(ctx, tipo, 106, 115, 6);
+
+  // selo Dylan Discos (topo dir)
+  ctx.save();
+  ctx.beginPath(); ctx.arc(946,132,58,0,7);
+  ctx.fillStyle='rgba(8,8,8,.62)'; ctx.fill();
+  ctx.lineWidth=2.5; ctx.strokeStyle='#fff'; ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.textAlign='center';
+  ctx.font='700 21px "Playfair Display"';
+  ctx.fillText('DYLAN',946,124); ctx.fillText('DISCOS',946,150);
+  ctx.restore();
+
+  // textos da base
+  const mx=88, artista=V('artista').toUpperCase(), album=V('album'),
+        ano=V('ano'), selo=V('selo'), cond=V('cond'), preco=V('preco');
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  if(artista){ ctx.fillStyle='#d8d3d1'; ctx.font='600 27px Inter'; drawSpaced(ctx,artista,mx,868,5); }
+  if(album){
+    ctx.fillStyle='#fff'; ctx.font='800 68px "Playfair Display"';
+    let a=album, f=68;
+    while(ctx.measureText(a).width>700 && f>38){ f-=3; ctx.font=`800 ${f}px "Playfair Display"`; }
+    ctx.fillText(a, mx, 946);
+  }
+  // linha inferior: ano · selo · condição
+  let x=mx; ctx.textBaseline='middle';
+  ctx.fillStyle='#9d9793'; ctx.font='500 30px Inter';
+  if(ano){ ctx.fillText(ano,x,996); x+=ctx.measureText(ano).width+18; }
+  if(selo){ if(ano){ctx.fillText('·',x,996); x+=22;} ctx.fillText(selo,x,996); x+=ctx.measureText(selo).width+22; }
+  if(cond){
+    ctx.font='700 24px Inter';
+    const cw=ctx.measureText(cond).width+24;
+    ctx.fillStyle=RED; ctx.fillRect(x,978,cw,38);
+    ctx.fillStyle='#fff'; ctx.fillText(cond,x+12,998);
+  }
+  // preço (base dir)
+  if(preco){
+    ctx.fillStyle=RED; ctx.font='800 62px "Playfair Display"';
+    ctx.textAlign='right'; ctx.fillText('R$ '+preco, 996, 1000);
+  }
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+}
+function drawSpaced(ctx,txt,x,y,sp){ let cx=x;
+  for(const ch of txt){ ctx.fillText(ch,cx,y); cx+=ctx.measureText(ch).width+sp; } }
+
+/* ─────────── LEGENDA & DOWNLOAD ─────────── */
+function montarLegenda(){
+  const V=v=>document.getElementById(v).value.trim();
+  const tipo=V('tipo'), l1=`${V('artista')}${tipo&&tipo!=='Vinil'?` (${tipo})`:''} - ${V('album')}`;
+  const partes=[l1];
+  if(V('detalhes')) partes.push('', V('detalhes'));
+  if(V('preco')) partes.push('', 'R$'+V('preco'));
+  if(V('curiosidade')) partes.push('', V('curiosidade'));
+  return partes.join('\n');
+}
+async function copiar(texto, okMsg){
+  try{ await navigator.clipboard.writeText(texto); setStatus('copyStatus','✅ '+okMsg,'ok'); }
+  catch(e){ setStatus('copyStatus','❌ Não consegui copiar: '+e.message,'err'); }
+}
+function copiarLegenda(){ copiar(montarLegenda(),'Legenda copiada! Cola no Instagram.'); }
+function copiarPrompt(){
+  const V=v=>document.getElementById(v).value.trim();
+  copiar(`Me dê uma curiosidade interessante e CURTA (2-3 frases, com 1 emoji no início) sobre o álbum "${V('album')}" de ${V('artista')}${V('ano')?` (${V('ano')}${V('selo')?', '+V('selo'):''})`:''}, no estilo de legenda de Instagram de loja de discos de vinil, em português do Brasil. Apenas fatos verificáveis e famosos sobre o álbum ou artista.`,
+  'Prompt copiado! Cola no Claude ou ChatGPT.');
+}
+function baixar(){
+  const V=v=>document.getElementById(v).value.trim();
+  desenhar();
+  document.getElementById('preview').toBlob(b=>{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(b);
+    a.download=`dylan-post-${(V('artista')||'disco').replace(/\s+/g,'-').toLowerCase()}.png`;
+    a.click();
+  },'image/png');
+}
+</script>
+</body>
+</html>
