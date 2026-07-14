@@ -171,6 +171,29 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 .fila-card{background:var(--orb);border:1px solid #4d2a00;border-radius:12px;padding:12px 14px;margin-bottom:12px}
 .fila-tit{font-size:13px;font-weight:700;color:var(--or)}
 .fila-sub{font-size:11px;color:var(--tx2);margin-top:2px}
+
+/* PAGAMENTO DIVIDIDO */
+.split-link{display:block;width:100%;background:transparent;border:1px dashed var(--bor);border-radius:8px;color:var(--bl);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;padding:10px;margin-bottom:12px}
+.split-link.on{color:var(--re);border-color:#4d1a1a}
+.split-info{font-size:12.5px;color:var(--tx2);margin-bottom:12px;line-height:1.6;background:var(--bg3);border-radius:8px;padding:8px 12px}
+.split-info:empty{display:none}
+
+/* FECHAMENTO — SEÇÕES RECOLHÍVEIS */
+.fech-det{border:1px solid var(--bor);border-radius:10px;margin-bottom:8px;overflow:hidden}
+.fech-det summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;cursor:pointer;background:var(--bg3)}
+.fech-det summary::-webkit-details-marker{display:none}
+.fech-sum-left{display:flex;align-items:center;gap:8px;min-width:0}
+.fech-qtd{font-size:11px;color:var(--tx3);white-space:nowrap}
+.fech-tot{font-weight:700;color:var(--gr);white-space:nowrap}
+.fech-body{padding:4px 12px 10px}
+.fech-arrow{color:var(--tx3);font-size:10px;transition:transform .15s;flex-shrink:0}
+.fech-det[open] .fech-arrow{transform:rotate(90deg)}
+.fech-disco{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--bor);font-size:12.5px}
+.fech-disco:last-of-type{border-bottom:none}
+.fech-disco-tit{color:var(--tx);min-width:0}
+.fech-disco-val{text-align:right;white-space:nowrap;flex-shrink:0}
+.fech-disco-pg{font-size:10.5px;color:var(--tx3)}
+.fech-subtot{display:flex;justify-content:space-between;padding:5px 0;font-size:12px;color:var(--tx2);border-top:1px dashed var(--bor)}
 </style>
 </head>
 <body>
@@ -229,8 +252,8 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <span class="valor-pre">R$</span>
       <input class="valor-inp" id="valorFinal" type="number" placeholder="0,00" step="0.50" min="0" inputmode="decimal" oninput="atualizaTaxa()"/>
     </div>
-    <div class="cl" style="margin-bottom:8px">Forma de pagamento</div>
-    <div class="pgto-grid">
+    <div class="cl" style="margin-bottom:8px" id="pgto1Label">Forma de pagamento</div>
+    <div class="pgto-grid" id="pgto1Grid">
       <button class="pgto-btn" onclick="selPgto('Dinheiro',this)">💵 Dinheiro</button>
       <button class="pgto-btn" onclick="selPgto('PIX',this)">⚡ Pix</button>
       <button class="pgto-btn" onclick="selPgto('Cartão Débito',this)">💳 Débito</button>
@@ -247,6 +270,22 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
         <button class="parc-btn" onclick="selParcela(12,this)">12x</button>
       </div>
       <div class="taxa-info" id="taxaInfo"></div>
+    </div>
+    <button class="split-link" id="splitLink" onclick="toggleSplit()">➗ Dividir em 2 pagamentos</button>
+    <div id="splitWrap" style="display:none">
+      <div class="cl" style="margin-bottom:6px">Valor do 2º pagamento</div>
+      <div class="valor-wrap">
+        <span class="valor-pre">R$</span>
+        <input class="valor-inp" id="valorPag2" type="number" placeholder="0,00" step="0.50" min="0" inputmode="decimal" oninput="atualizaSplitInfo()"/>
+      </div>
+      <div class="cl" style="margin-bottom:8px">Forma do 2º pagamento</div>
+      <div class="pgto-grid" id="pgto2Grid">
+        <button class="pgto-btn" onclick="selPgto2('Dinheiro',this)">💵 Dinheiro</button>
+        <button class="pgto-btn" onclick="selPgto2('PIX',this)">⚡ Pix</button>
+        <button class="pgto-btn" onclick="selPgto2('Cartão Débito',this)">💳 Débito</button>
+        <button class="pgto-btn" onclick="selPgto2('Cartão Crédito',this)">💳 Crédito</button>
+      </div>
+      <div class="split-info" id="splitInfo"></div>
     </div>
     <div class="cl" style="margin:10px 0 6px">Cliente (opcional)</div>
     <input class="inp" id="compradorUnico" type="text" placeholder="Nome do comprador" style="font-size:14px;padding:10px 12px"/>
@@ -332,7 +371,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     </div>
 
     <div class="cl" style="margin-bottom:8px">Forma de pagamento</div>
-    <div class="pgto-grid">
+    <div class="pgto-grid" id="cartPgto1Grid">
       <button class="pgto-btn" onclick="selCartPgto('Dinheiro',this)">💵 Dinheiro</button>
       <button class="pgto-btn" onclick="selCartPgto('PIX',this)">⚡ Pix</button>
       <button class="pgto-btn" onclick="selCartPgto('Cartão Débito',this)">💳 Débito</button>
@@ -350,7 +389,22 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       </div>
       <div class="taxa-info" id="cartTaxaInfo"></div>
     </div>
-    <div class="cl" style="margin:10px 0 6px">Cliente (opcional)</div>
+    <button class="split-link" id="cartSplitLink" onclick="toggleCartSplit()">➗ Dividir em 2 pagamentos</button>
+    <div id="cartSplitWrap" style="display:none">
+      <div class="cl" style="margin-bottom:6px">Valor do 2º pagamento</div>
+      <div class="valor-wrap">
+        <span class="valor-pre">R$</span>
+        <input class="valor-inp" id="cartValorPag2" type="number" placeholder="0,00" step="0.50" min="0" inputmode="decimal" oninput="atualizaCartSplitInfo()"/>
+      </div>
+      <div class="cl" style="margin-bottom:8px">Forma do 2º pagamento</div>
+      <div class="pgto-grid" id="cartPgto2Grid">
+        <button class="pgto-btn" onclick="selCartPgto2('Dinheiro',this)">💵 Dinheiro</button>
+        <button class="pgto-btn" onclick="selCartPgto2('PIX',this)">⚡ Pix</button>
+        <button class="pgto-btn" onclick="selCartPgto2('Cartão Débito',this)">💳 Débito</button>
+        <button class="pgto-btn" onclick="selCartPgto2('Cartão Crédito',this)">💳 Crédito</button>
+      </div>
+      <div class="split-info" id="cartSplitInfo"></div>
+    </div>
     <input class="inp" id="compradorCart" type="text" placeholder="Nome do comprador" style="font-size:14px;padding:10px 12px"/>
     <hr style="border:none;border-top:1px solid var(--bor);margin:12px 0"/>
     <button class="btn bg" id="btnFecharCart" onclick="fecharCarrinho()">✓ Fechar compra</button>
@@ -411,6 +465,11 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 <div id="scr-resumo" class="scr">
   <div class="page-title">📊 Resumo do dia</div>
 
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <div class="cl" style="margin:0">📅 Dia</div>
+    <input class="inp" id="resumoData" type="date" style="width:auto;font-size:14px;padding:8px 10px" onchange="renderResumo()"/>
+  </div>
+
   <!-- FILA OFFLINE -->
   <div class="fila-card" id="filaCard" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
@@ -436,10 +495,11 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     </div>
     <div id="fechamentoLista"><div class="empty">—</div></div>
     <button class="btn bb" id="btnCopiarFech" onclick="copiarFechamento()" style="margin-top:10px">📋 Copiar fechamento do dia</button>
+    <button class="btn bp" id="btnSalvarFech" onclick="salvarFechamento()" style="margin-top:8px">💾 Salvar fechamento no Notion</button>
   </div>
 
   <div class="card">
-    <div class="cl">Vendas de hoje (agrupadas por carrinho)</div>
+    <div class="cl">Vendas do dia (agrupadas por carrinho)</div>
     <div id="vendasLista"><div class="empty">Nenhuma venda ainda</div></div>
   </div>
 </div>
@@ -470,6 +530,7 @@ var DB_E  = 'f017299ec289407790e49194971ee03e';  // Estoque
 var DB_V  = '9a61fa415c264375a58ed49cc699cad0';  // Vendas
 var DB_P  = 'a1af6ecd9afa43c287bf8e44a6a650cb';  // Pedidos & Wants
 var DB_PE = 'c1b5097488ea4b6a854223a177170280';  // Pessoas
+var DB_F  = 'e4228a975879432385b35a32e1addf22';  // Fechamentos (salvos pelo PDV)
 var PRXY = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev/v1/';
 var TAXAS = {1:0, 2:3.49, 3:4.99, 4:6.49, 6:8.49, 10:12.49, 12:14.49};
 
@@ -491,11 +552,15 @@ function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return 
 // ════════════════════════════════════════
 var discoAtual = null;
 var pgtoAtual = null;
+var pgto2Atual = null;
+var splitAtivo = false;
 var parcelasAtual = 1;
 var vendas = [];
 
 var carrinho = [];
 var cartPgto = null;
+var cartPgto2 = null;
+var cartSplitAtivo = false;
 var cartParcelas = 1;
 
 var pncFotoBase64 = null;
@@ -692,6 +757,7 @@ function exibirDisco(d, offline) {
 
   document.getElementById('valorFinal').value = (d.preco||0).toFixed(2);
   pgtoAtual = null; parcelasAtual = 1;
+  if (splitAtivo) toggleSplit();
   document.querySelectorAll('#pgtoCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
   document.querySelectorAll('#parcelasWrap .parc-btn').forEach(function(b){ b.classList.remove('sel'); });
   document.querySelector('#parcelasWrap .parc-btn').classList.add('sel');
@@ -711,10 +777,46 @@ function exibirDisco(d, offline) {
 // ════════════════════════════════════════
 function selPgto(tipo, btn) {
   pgtoAtual = tipo;
-  document.querySelectorAll('#pgtoCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  document.querySelectorAll('#pgto1Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
   if (tipo === 'Cartão Crédito') document.getElementById('parcelasWrap').classList.add('show');
   else { document.getElementById('parcelasWrap').classList.remove('show'); parcelasAtual = 1; document.getElementById('taxaInfo').textContent = ''; }
+  atualizaSplitInfo();
+}
+
+// ── PAGAMENTO DIVIDIDO (venda rápida) ──
+function toggleSplit() {
+  splitAtivo = !splitAtivo;
+  var link = document.getElementById('splitLink');
+  document.getElementById('splitWrap').style.display = splitAtivo ? 'block' : 'none';
+  link.textContent = splitAtivo ? '× Cancelar divisão' : '➗ Dividir em 2 pagamentos';
+  link.classList.toggle('on', splitAtivo);
+  document.getElementById('pgto1Label').textContent = splitAtivo ? '1º pagamento' : 'Forma de pagamento';
+  if (!splitAtivo) {
+    pgto2Atual = null;
+    document.getElementById('valorPag2').value = '';
+    document.getElementById('splitInfo').textContent = '';
+    document.querySelectorAll('#pgto2Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  } else {
+    atualizaSplitInfo();
+  }
+}
+function selPgto2(tipo, btn) {
+  pgto2Atual = tipo;
+  document.querySelectorAll('#pgto2Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  atualizaSplitInfo();
+}
+// Você digita o valor do 2º pagamento e o 1º se ajusta sozinho (total - 2º)
+function atualizaSplitInfo() {
+  if (!splitAtivo) return;
+  var el = document.getElementById('splitInfo');
+  var total = parseFloat(document.getElementById('valorFinal').value) || 0;
+  var v2 = parseFloat(document.getElementById('valorPag2').value) || 0;
+  if (!total || !v2) { el.textContent = ''; return; }
+  if (v2 >= total) { el.innerHTML = '⚠️ O 2º pagamento deve ser MENOR que o total de '+fmt(total); return; }
+  var v1 = Math.round((total - v2)*100)/100;
+  el.innerHTML = '1º pagamento ('+(pgtoAtual||'?')+'): <strong>'+fmt(v1)+'</strong><br/>2º pagamento ('+(pgto2Atual||'?')+'): <strong>'+fmt(v2)+'</strong>';
 }
 function selParcela(n, btn) {
   parcelasAtual = n;
@@ -723,8 +825,10 @@ function selParcela(n, btn) {
   atualizaTaxa();
 }
 function atualizaTaxa() {
+  atualizaSplitInfo();
   if (pgtoAtual !== 'Cartão Crédito' || parcelasAtual <= 1) { document.getElementById('taxaInfo').textContent = ''; return; }
   var valor = parseFloat(document.getElementById('valorFinal').value) || 0;
+  if (splitAtivo) valor = Math.max(0, valor - (parseFloat(document.getElementById('valorPag2').value) || 0));
   if (!valor) return;
   var taxa = TAXAS[parcelasAtual] || 0;
   var total = valor * (1 + taxa/100);
@@ -736,11 +840,17 @@ async function confirmar() {
   if (!pgtoAtual) { showAle('aV','ae','Selecione a forma de pagamento.'); return; }
   var valor = parseFloat(document.getElementById('valorFinal').value);
   if (!valor || valor <= 0) { showAle('aV','ae','Informe o valor cobrado.'); return; }
+  var valor2 = 0;
+  if (splitAtivo) {
+    valor2 = parseFloat(document.getElementById('valorPag2').value) || 0;
+    if (!pgto2Atual) { showAle('aV','ae','Selecione a forma do 2º pagamento (ou cancele a divisão).'); return; }
+    if (valor2 <= 0 || valor2 >= valor) { showAle('aV','ae','O 2º pagamento deve ser maior que zero e menor que o total.'); return; }
+  }
   var comprador = document.getElementById('compradorUnico').value.trim();
   document.getElementById('btnConfirmar').disabled = true;
   showAle('aVload','al','Registrando venda...');
 
-  var job = montarJob([discoAtual], valor, pgtoAtual, parcelasAtual, 0, comprador);
+  var job = montarJob([discoAtual], valor, pgtoAtual, parcelasAtual, 0, comprador, splitAtivo ? pgto2Atual : null, valor2);
   var r = await venderComFallback(job);
 
   if (r.ok || r.queued) {
@@ -752,6 +862,7 @@ async function confirmar() {
     document.getElementById('pgtoCard').style.display = 'none';
     document.getElementById('idInput').value = '';
     document.getElementById('compradorUnico').value = '';
+    if (splitAtivo) toggleSplit();
     discoAtual = null;
   } else {
     showAle('aV','ae','Erro ao registrar: '+r.err);
@@ -794,7 +905,8 @@ function addCarrinho() {
     id:       discoAtual.id,
     preco:    preco,
     custo:    discoAtual.custo,
-    coverUrl: discoAtual.coverUrl
+    coverUrl: discoAtual.coverUrl,
+    origem:   discoAtual.origem
   });
 
   saveCart();
@@ -849,9 +961,12 @@ function renderCartTotal() {
   }
   if (cartPgto === 'Cartão Crédito' && cartParcelas > 1) {
     var taxa = TAXAS[cartParcelas]||0;
-    var totTaxa = total*(1+taxa/100);
+    var totCred = total;
+    if (cartSplitAtivo) totCred = Math.max(0, total - (parseFloat(document.getElementById('cartValorPag2').value) || 0));
+    var totTaxa = totCred*(1+taxa/100);
     document.getElementById('cartTaxaInfo').textContent = 'Taxa '+taxa+'% — '+cartParcelas+'x de '+fmt(totTaxa/cartParcelas)+' = total '+fmt(totTaxa);
   }
+  atualizaCartSplitInfo();
 }
 
 function removerCart(idx) {
@@ -864,6 +979,7 @@ function removerCart(idx) {
 
 function limparCarrinho() {
   carrinho = []; cartPgto = null; cartParcelas = 1;
+  if (cartSplitAtivo) toggleCartSplit();
   saveCart();
   document.getElementById('cartCard').style.display = 'none';
   document.getElementById('cartDesc').value = '';
@@ -873,7 +989,7 @@ function limparCarrinho() {
 
 function selCartPgto(tipo, btn) {
   cartPgto = tipo;
-  document.querySelectorAll('#cartCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  document.querySelectorAll('#cartPgto1Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
   if (tipo === 'Cartão Crédito') document.getElementById('cartParcelasWrap').classList.add('show');
   else { document.getElementById('cartParcelasWrap').classList.remove('show'); cartParcelas = 1; document.getElementById('cartTaxaInfo').textContent = ''; }
@@ -884,6 +1000,44 @@ function selCartParcela(n, btn) {
   document.querySelectorAll('#cartParcelasWrap .parc-btn').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
   renderCartTotal();
+}
+
+// ── PAGAMENTO DIVIDIDO (carrinho) ──
+function cartTotalAtual() {
+  var sub = carrinho.reduce(function(s,i){ return s+i.preco; }, 0);
+  var desc = parseFloat(document.getElementById('cartDesc').value) || 0;
+  return Math.max(0, sub - desc);
+}
+function toggleCartSplit() {
+  cartSplitAtivo = !cartSplitAtivo;
+  var link = document.getElementById('cartSplitLink');
+  document.getElementById('cartSplitWrap').style.display = cartSplitAtivo ? 'block' : 'none';
+  link.textContent = cartSplitAtivo ? '× Cancelar divisão' : '➗ Dividir em 2 pagamentos';
+  link.classList.toggle('on', cartSplitAtivo);
+  if (!cartSplitAtivo) {
+    cartPgto2 = null;
+    document.getElementById('cartValorPag2').value = '';
+    document.getElementById('cartSplitInfo').textContent = '';
+    document.querySelectorAll('#cartPgto2Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  } else {
+    atualizaCartSplitInfo();
+  }
+}
+function selCartPgto2(tipo, btn) {
+  cartPgto2 = tipo;
+  document.querySelectorAll('#cartPgto2Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  btn.classList.add('sel');
+  atualizaCartSplitInfo();
+}
+function atualizaCartSplitInfo() {
+  if (!cartSplitAtivo) return;
+  var el = document.getElementById('cartSplitInfo');
+  var total = cartTotalAtual();
+  var v2 = parseFloat(document.getElementById('cartValorPag2').value) || 0;
+  if (!total || !v2) { el.textContent = ''; return; }
+  if (v2 >= total) { el.innerHTML = '⚠️ O 2º pagamento deve ser MENOR que o total de '+fmt(total); return; }
+  var v1 = Math.round((total - v2)*100)/100;
+  el.innerHTML = '1º pagamento ('+(cartPgto||'?')+'): <strong>'+fmt(v1)+'</strong><br/>2º pagamento ('+(cartPgto2||'?')+'): <strong>'+fmt(v2)+'</strong>';
 }
 
 function atualizaBadge() {
@@ -898,12 +1052,18 @@ async function fecharCarrinho() {
   var desc = parseFloat(document.getElementById('cartDesc').value) || 0;
   var sub = carrinho.reduce(function(s,i){ return s+i.preco; }, 0);
   var total = Math.max(0, sub - desc);
+  var cartValor2 = 0;
+  if (cartSplitAtivo) {
+    cartValor2 = parseFloat(document.getElementById('cartValorPag2').value) || 0;
+    if (!cartPgto2) { showAle('aVload','ae','Selecione a forma do 2º pagamento (ou cancele a divisão).'); return; }
+    if (cartValor2 <= 0 || cartValor2 >= total) { showAle('aVload','ae','O 2º pagamento deve ser maior que zero e menor que o total.'); return; }
+  }
   var comprador = document.getElementById('compradorCart').value.trim();
   document.getElementById('btnFecharCart').disabled = true;
   showAle('aVload','al','Registrando '+carrinho.length+' disco(s)...');
 
   var qtd = carrinho.length;
-  var job = montarJob(carrinho, total, cartPgto, cartParcelas, desc, comprador);
+  var job = montarJob(carrinho, total, cartPgto, cartParcelas, desc, comprador, cartSplitAtivo ? cartPgto2 : null, cartValor2);
   var r = await venderComFallback(job);
 
   if (r.ok || r.queued) {
@@ -1054,7 +1214,7 @@ async function confirmarPnc() {
 // A matemática (rateio de desconto etc.) é calculada NA HORA da venda e congelada
 // num "job". O envio pro Notion pode acontecer depois, sem perder nada.
 // ════════════════════════════════════════
-function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador) {
+function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador, pgto2, valor2) {
   var totalItens = itens.length;
   var txnId = 'TXN-' + Date.now();
   var somaBruto = itens.reduce(function(s, it){ return s + it.preco; }, 0);
@@ -1086,6 +1246,7 @@ function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador) {
       obs = 'Lote com '+totalItens+' item(ns)';
     }
     if (isPnc) obs = (obs ? obs+' | ' : '') + 'PNC' + (item.desc ? ' — '+item.desc : '');
+    if (pgto2 && valor2 > 0) obs = (obs ? obs+' | ' : '') + 'Pgto dividido: '+pgto+' + '+pgto2;
 
     jobItens.push({
       isPnc: isPnc,
@@ -1102,9 +1263,25 @@ function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador) {
     });
   }
 
+  // Pagamento dividido: rateia o 2º pagamento entre os itens (proporcional, resto no último → soma exata)
+  if (pgto2 && valor2 > 0) {
+    var somaItens = jobItens.reduce(function(sx,it){ return sx + it.valorItem; }, 0);
+    var acum2 = 0;
+    for (var j = 0; j < jobItens.length; j++) {
+      var v2i;
+      if (j === jobItens.length - 1) v2i = Math.round((valor2 - acum2) * 100) / 100;
+      else {
+        var peso2 = somaItens > 0 ? (jobItens[j].valorItem / somaItens) : (1 / jobItens.length);
+        v2i = Math.round(valor2 * peso2 * 100) / 100;
+        acum2 += v2i;
+      }
+      jobItens[j].valor2Item = v2i;
+    }
+  }
+
   return {
     t: 'venda', txn: txnId, dia: hojeLocal(),
-    pgto: pgto, parcelas: parcelas, comprador: comprador || '',
+    pgto: pgto, pgto2: pgto2 || null, valor2: valor2 || 0, parcelas: parcelas, comprador: comprador || '',
     itens: jobItens, done: jobItens.map(function(){ return false; })
   };
 }
@@ -1148,7 +1325,11 @@ async function enviarJob(job) {
       'ID da Transação':    { rich_text: [{ text:{ content: job.txn } }] }
     };
     if (!it.isPnc && it.pageId) vProps['Disco (Estoque)'] = { relation: [{ id: it.pageId }] };
-    if (it.isPnc && it.origem)  vProps['Origem / Propriedade'] = { select: { name: it.origem } };
+    if (it.origem && it.origem !== '—') vProps['Origem / Propriedade'] = { select: { name: it.origem } };
+    if (job.pgto2 && it.valor2Item > 0) {
+      vProps['Pagamento 2']  = { select: { name: job.pgto2 } };
+      vProps['Valor Pag. 2'] = { number: it.valor2Item };
+    }
     if (fileUploadId) vProps['Imagem PNC'] = { files: [{ type: 'file_upload', file_upload: { id: fileUploadId } }] };
     if (job.pgto === 'Cartão Crédito' && job.parcelas > 1) vProps['Parcelas'] = { number: job.parcelas };
     if (it.obs) vProps['Observações'] = { rich_text: [{ text:{ content: it.obs } }] };
@@ -1257,17 +1438,17 @@ function esc(s){ return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 var ultimasRows = []; // usado pelo botão "copiar fechamento"
 
 // Linhas pendentes (fila offline) do dia — entram no resumo mesmo sem internet
-function rowsDaFila() {
-  var hoje = hojeLocal();
+function rowsDaFila(dia) {
   var fila = lsGet('vnl_fila', []);
   var out = [];
   fila.forEach(function(job) {
-    if (job.t !== 'venda' || job.dia !== hoje) return;
+    if (job.t !== 'venda' || job.dia !== dia) return;
     job.itens.forEach(function(it, i) {
       if (job.done[i]) return;
       out.push({
         titulo: '⏳ '+it.titulo, valor: it.valorItem, bruto: it.valorBruto,
-        pgto: job.pgto, origem: it.origem || '—', parcelas: job.parcelas,
+        pgto: job.pgto, pgto2: job.pgto2 || '', valor2: it.valor2Item || 0,
+        origem: it.origem || '—', parcelas: job.parcelas,
         txn: job.txn, desconto: it.descontoItem, pend: true
       });
     });
@@ -1275,17 +1456,37 @@ function rowsDaFila() {
   return out;
 }
 
+// Origem pelo título (VNL-xxx) via catálogo local — cobre vendas antigas sem origem gravada
+function origemDoTitulo(titulo) {
+  var m = String(titulo).match(/VNL-(\d+)/);
+  if (!m) return null;
+  var c = catalogo.find(function(x){ return x.cod === parseInt(m[1],10); });
+  return (c && c.og) ? c.og : null;
+}
+// Quebra uma venda nas suas formas de pagamento (1 ou 2)
+function pagamentosDaRow(v) {
+  if (v.pgto2 && v.valor2 > 0) {
+    return [
+      { pgto: v.pgto || 'Outro', valor: Math.round((v.valor - v.valor2)*100)/100 },
+      { pgto: v.pgto2, valor: v.valor2 }
+    ];
+  }
+  return [{ pgto: v.pgto || 'Outro', valor: v.valor }];
+}
+
 async function renderResumo() {
   atualizaFilaBadge();
-  document.getElementById('vendasLista').innerHTML = '<div class="empty">⏳ Carregando vendas de hoje...</div>';
+  var dataEl = document.getElementById('resumoData');
+  if (!dataEl.value) dataEl.value = hojeLocal();
+  var dia = dataEl.value;
+  document.getElementById('vendasLista').innerHTML = '<div class="empty">⏳ Carregando vendas...</div>';
   document.getElementById('fechamentoLista').innerHTML = '';
 
-  var hoje = hojeLocal();
   var rows = [];
 
   try {
     var res = await nReq('POST', 'databases/'+DB_V+'/query', {
-      filter: { property: 'Data da Venda', date: { equals: hoje } },
+      filter: { property: 'Data da Venda', date: { equals: dia } },
       page_size: 100
     });
 
@@ -1295,12 +1496,15 @@ async function renderResumo() {
       function gtxt(f){ try{ return p[f].rich_text[0].plain_text; }catch(e){ return ''; } }
       function gs(f){ try{ return p[f].select.name; }catch(e){ return ''; } }
       function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
+      var titulo = gt('Disco Vendido');
       return {
-        titulo: gt('Disco Vendido'),
+        titulo: titulo,
         valor: gn('Valor Recebido'),
         bruto: gn('Valor Bruto'),
         pgto: gs('Forma de Pagamento'),
-        origem: gs('Origem / Propriedade') || '—',
+        pgto2: gs('Pagamento 2'),
+        valor2: gn('Valor Pag. 2'),
+        origem: gs('Origem / Propriedade') || origemDoTitulo(titulo) || '—',
         parcelas: gn('Parcelas'),
         desconto: gn('Desconto'),
         txn: gtxt('ID da Transação') || page.id
@@ -1310,7 +1514,7 @@ async function renderResumo() {
     document.getElementById('vendasLista').innerHTML = '<div class="empty">📴 Sem internet — mostrando só o que está no aparelho.</div>';
   }
 
-  rows = rows.concat(rowsDaFila());
+  rows = rows.concat(rowsDaFila(dia));
   ultimasRows = rows;
 
   renderResumoCards(rows);
@@ -1346,13 +1550,10 @@ function renderResumoCards(rows) {
   document.getElementById('rMargem').textContent = mg === null ? '—' : '≈ '+fmt(mg);
 }
 
-// Gera o texto do fechamento pronto pra colar (WhatsApp / caderno / Notion)
-function copiarFechamento() {
-  var rows = ultimasRows;
-  if (!rows.length) { showAle('aC','ae','Nada pra copiar ainda.'); return; }
-  var d = new Date();
-  var dataBr = String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
-
+// Monta o texto do fechamento. detalhado=true lista disco por disco (vai pro Notion);
+// detalhado=false fica compacto — só totais por origem e pagamento (bom pro WhatsApp com 120 discos)
+function gerarTextoFechamento(rows, dia, detalhado) {
+  var dataBr = dia.split('-').reverse().join('/');
   var total = rows.reduce(function(s,v){ return s+v.valor; },0);
   var descTot = rows.reduce(function(s,v){ return s+(v.desconto||0); },0);
   var txns = {}; rows.forEach(function(v){ txns[v.txn]=true; });
@@ -1360,13 +1561,16 @@ function copiarFechamento() {
 
   var grupos = {};
   rows.forEach(function(v) {
-    if (!grupos[v.origem]) grupos[v.origem] = {};
-    var k = v.pgto || 'Outro';
-    grupos[v.origem][k] = (grupos[v.origem][k]||0) + v.valor;
+    if (!grupos[v.origem]) grupos[v.origem] = { discos: [], pgtos: {}, total: 0 };
+    grupos[v.origem].discos.push(v);
+    grupos[v.origem].total += v.valor;
+    pagamentosDaRow(v).forEach(function(pp){ grupos[v.origem].pgtos[pp.pgto] = (grupos[v.origem].pgtos[pp.pgto]||0) + pp.valor; });
   });
+  var ordem = ['Sociedade','Pai','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
+  Object.keys(grupos).forEach(function(o){ if (ordem.indexOf(o)===-1) ordem.push(o); });
 
-  var pgtos = {};
-  rows.forEach(function(v){ var k = v.pgto||'Outro'; pgtos[k] = (pgtos[k]||0)+v.valor; });
+  var pgtosDia = {};
+  rows.forEach(function(v){ pagamentosDaRow(v).forEach(function(pp){ pgtosDia[pp.pgto] = (pgtosDia[pp.pgto]||0)+pp.valor; }); });
 
   var txt = '📀 FECHAMENTO FEIRA — '+dataBr+'\n';
   txt += '━━━━━━━━━━━━━━━━━━\n';
@@ -1374,22 +1578,96 @@ function copiarFechamento() {
   if (descTot > 0) txt += 'Descontos dados: '+fmt(descTot)+'\n';
   var mg = margemEstimada(rows);
   if (mg !== null) txt += 'Margem estimada: '+fmt(mg)+'\n';
-  txt += '\n💳 Por pagamento:\n';
-  Object.keys(pgtos).forEach(function(k){ txt += '  '+k+': '+fmt(pgtos[k])+'\n'; });
-  txt += '\n👥 Por origem (repasse):\n';
-  Object.keys(grupos).forEach(function(o) {
-    var tot = Object.keys(grupos[o]).reduce(function(s,k){ return s+grupos[o][k]; },0);
-    txt += '  '+o+': '+fmt(tot);
-    var det = Object.keys(grupos[o]).map(function(k){ return k+' '+fmt(grupos[o][k]); }).join(' · ');
-    txt += ' ('+det+')\n';
+
+  txt += '\n👥 POR ORIGEM (repasse):\n';
+  ordem.forEach(function(o) {
+    var g = grupos[o];
+    txt += '\n'+String(o).toUpperCase()+' — '+fmt(g.total)+' ('+g.discos.length+' disco'+(g.discos.length>1?'s':'')+')\n';
+    txt += '  '+Object.keys(g.pgtos).map(function(k){ return k+' '+fmt(g.pgtos[k]); }).join(' · ')+'\n';
+    if (detalhado) {
+      g.discos.forEach(function(v) {
+        var pgLabel = pagamentosDaRow(v).map(function(pp){ return pp.pgto+' '+fmt(pp.valor); }).join(' + ');
+        txt += '  • '+v.titulo+' — '+fmt(v.valor)+' ('+pgLabel+')\n';
+      });
+    }
   });
+
+  txt += '\n💳 TOTAL POR PAGAMENTO:\n';
+  Object.keys(pgtosDia).forEach(function(k){ txt += '  '+k+': '+fmt(pgtosDia[k])+'\n'; });
   if (pend > 0) txt += '\n⏳ Atenção: '+pend+' registro(s) ainda no aparelho, aguardando internet.\n';
+  return txt;
+}
+
+function copiarFechamento() {
+  var rows = ultimasRows;
+  if (!rows.length) { showAle('aC','ae','Nada pra copiar ainda.'); return; }
+  var dia = document.getElementById('resumoData').value || hojeLocal();
+  // Até 15 discos: lista disco por disco. Acima disso: compacto (o detalhe completo vive no Notion)
+  var txt = gerarTextoFechamento(rows, dia, rows.length <= 15);
 
   var btn = document.getElementById('btnCopiarFech');
   function feito() { btn.textContent = '✓ Copiado!'; setTimeout(function(){ btn.textContent = '📋 Copiar fechamento do dia'; }, 2000); }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt).then(feito).catch(function(){ copiaFallback(txt); feito(); });
   } else { copiaFallback(txt); feito(); }
+}
+
+// Salva o fechamento como página na base 📋 Fechamentos do Notion (sempre com o detalhe completo).
+// Se já existir fechamento do mesmo dia, arquiva o antigo — fica sempre 1 por dia, atualizado.
+async function salvarFechamento() {
+  var rows = ultimasRows;
+  if (!rows.length) { showAle('aC','ae','Nada pra salvar ainda.'); return; }
+  var dia = document.getElementById('resumoData').value || hojeLocal();
+  var dataBr = dia.split('-').reverse().join('/');
+  var btn = document.getElementById('btnSalvarFech');
+  btn.disabled = true; btn.textContent = '⏳ Salvando…';
+
+  try {
+    try {
+      var antigos = await nReq('POST', 'databases/'+DB_F+'/query', {
+        filter: { property: 'Data', date: { equals: dia } }, page_size: 10
+      });
+      for (var a = 0; a < (antigos.results||[]).length; a++) {
+        await nReq('PATCH', 'pages/'+antigos.results[a].id, { archived: true });
+      }
+    } catch(e) { console.warn('Não deu pra checar fechamentos antigos:', e); }
+
+    var total = rows.reduce(function(s,v){ return s+v.valor; },0);
+    var txns = {}; rows.forEach(function(v){ txns[v.txn]=true; });
+    var txt = gerarTextoFechamento(rows, dia, true);
+
+    // Notion limita ~2000 caracteres por bloco — divide o texto por linhas
+    var blocos = [];
+    var linhas = txt.split('\n');
+    var atual = '';
+    linhas.forEach(function(l) {
+      if ((atual+'\n'+l).length > 1800) { blocos.push(atual); atual = l; }
+      else atual = atual ? atual+'\n'+l : l;
+    });
+    if (atual) blocos.push(atual);
+
+    await nReq('POST', 'pages', {
+      parent: { database_id: DB_F },
+      properties: {
+        'Fechamento': { title: [{ text: { content: 'Fechamento Feira — '+dataBr } }] },
+        'Data':   { date: { start: dia } },
+        'Total':  { number: Math.round(total*100)/100 },
+        'Discos': { number: rows.length },
+        'Vendas': { number: Object.keys(txns).length },
+        'Canal':  { select: { name: 'Feira' } }
+      },
+      children: blocos.map(function(b) {
+        return { object: 'block', type: 'paragraph', paragraph: { rich_text: [{ text: { content: b } }] } };
+      })
+    });
+
+    btn.textContent = '✓ Salvo no Notion!';
+    setTimeout(function(){ btn.textContent = '💾 Salvar fechamento no Notion'; btn.disabled = false; }, 2500);
+  } catch(e) {
+    btn.textContent = '💾 Salvar fechamento no Notion';
+    btn.disabled = false;
+    showAle('aC','ae','Erro ao salvar fechamento: '+e.message);
+  }
 }
 function copiaFallback(txt) {
   var ta = document.createElement('textarea');
@@ -1414,7 +1692,7 @@ function renderVendasAgrupadas(rows) {
   ordem.slice().reverse().forEach(function(txn) {
     var itens = grupos[txn];
     var total = itens.reduce(function(s,i){ return s+i.valor; }, 0);
-    var pgto = itens[0].pgto;
+    var pgto = itens[0].pgto + (itens[0].pgto2 && itens[0].valor2 > 0 ? ' + '+itens[0].pgto2 : '');
     var parcelasInfo = itens[0].parcelas > 1 ? ' · '+itens[0].parcelas+'x' : '';
     var titulos = itens.map(function(i){ return i.titulo; }).join(' + ');
     var qtdLabel = itens.length > 1 ? itens.length+' discos' : '1 disco';
@@ -1430,32 +1708,48 @@ function renderVendasAgrupadas(rows) {
 function renderFechamento(rows) {
   if (!rows.length) { document.getElementById('fechamentoLista').innerHTML = '<div class="empty">—</div>'; return; }
 
-  // Agrupa por Origem → Forma de Pagamento, somando Valor Recebido (igual ao fechamento manual no caderno)
-  var grupos = {}; // { origem: { pgto: total } }
+  // Agrupa por Origem: discos + totais por forma de pagamento (divisões contam certo em cada forma)
+  var grupos = {}; // { origem: { discos:[], pgtos:{}, total } }
   rows.forEach(function(v) {
-    if (!grupos[v.origem]) grupos[v.origem] = {};
-    var key = v.pgto || 'Outro';
-    grupos[v.origem][key] = (grupos[v.origem][key] || 0) + v.valor;
+    if (!grupos[v.origem]) grupos[v.origem] = { discos: [], pgtos: {}, total: 0 };
+    var g = grupos[v.origem];
+    g.discos.push(v);
+    g.total += v.valor;
+    pagamentosDaRow(v).forEach(function(pp){ g.pgtos[pp.pgto] = (g.pgtos[pp.pgto] || 0) + pp.valor; });
   });
 
   var ordemOrigem = ['Sociedade','Pai','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
-  // Inclui qualquer origem não prevista na lista (segurança)
   Object.keys(grupos).forEach(function(o){ if (ordemOrigem.indexOf(o)===-1) ordemOrigem.push(o); });
 
   var html = '';
+  var abrir = rows.length <= 15 ? ' open' : ''; // dia pequeno: já vem aberto; dia grande: recolhido
   ordemOrigem.forEach(function(origem) {
-    var pgtos = grupos[origem];
-    var totalOrigem = Object.keys(pgtos).reduce(function(s,k){ return s+pgtos[k]; }, 0);
-    html += '<div style="margin-bottom:12px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-        '<span class="badge badge-pu">'+esc(origem)+'</span>'+
-        '<span style="font-weight:700;color:var(--gr)">'+fmt(totalOrigem)+'</span>'+
-      '</div>';
-    Object.keys(pgtos).forEach(function(pg) {
-      html += '<div class="row"><span class="rk">'+esc(pg)+'</span><span class="rv">'+fmt(pgtos[pg])+'</span></div>';
+    var g = grupos[origem];
+    html += '<details class="fech-det"'+abrir+'><summary>'+
+      '<span class="fech-sum-left"><span class="fech-arrow">▶</span><span class="badge badge-pu" style="margin:0">'+esc(origem)+'</span>'+
+      '<span class="fech-qtd">'+g.discos.length+' disco'+(g.discos.length>1?'s':'')+'</span></span>'+
+      '<span class="fech-tot">'+fmt(g.total)+'</span></summary>'+
+      '<div class="fech-body">';
+    g.discos.forEach(function(v) {
+      var pgLabel = pagamentosDaRow(v).map(function(pp){ return pp.pgto+' '+fmt(pp.valor); }).join(' + ');
+      html += '<div class="fech-disco"><span class="fech-disco-tit">'+esc(v.titulo)+'</span>'+
+        '<span class="fech-disco-val">'+fmt(v.valor)+'<div class="fech-disco-pg">'+esc(pgLabel)+'</div></span></div>';
     });
-    html += '</div>';
+    Object.keys(g.pgtos).forEach(function(pg) {
+      html += '<div class="fech-subtot"><span>'+esc(pg)+'</span><span>'+fmt(g.pgtos[pg])+'</span></div>';
+    });
+    html += '</div></details>';
   });
+
+  // Totais do dia por forma de pagamento (já considerando divisões)
+  var pgtosDia = {};
+  rows.forEach(function(v){ pagamentosDaRow(v).forEach(function(pp){ pgtosDia[pp.pgto] = (pgtosDia[pp.pgto]||0) + pp.valor; }); });
+  html += '<div style="margin-top:10px"><div class="cl" style="margin-bottom:4px">💳 Total por pagamento</div>';
+  Object.keys(pgtosDia).forEach(function(pg) {
+    html += '<div class="row"><span class="rk">'+esc(pg)+'</span><span class="rv">'+fmt(pgtosDia[pg])+'</span></div>';
+  });
+  html += '</div>';
+
   document.getElementById('fechamentoLista').innerHTML = html;
 }
 
@@ -1698,6 +1992,6 @@ window.addEventListener('load', function() {
 });
 window.addEventListener('online', function() { flushFila(false); });
 </script>
-<!-- PDV Feira de Vinil v2 — catálogo offline, fila anti-perda, fechamento e wants -->
+<!-- PDV Feira de Vinil v3 — pagamento dividido, fechamento por origem, histórico por data, fechamentos salvos no Notion -->
 </body>
 </html>
