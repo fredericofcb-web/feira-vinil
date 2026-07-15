@@ -170,10 +170,7 @@
 <script>
 const WORKER = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev';
 
-/* ═══════════ MODO: PC ou CELULAR? ═══════════ */
-const params = new URLSearchParams(location.search);
-const fotoSession = params.get('foto');
-if (fotoSession) { initMobile(fotoSession); } else { initDesktop(); }
+/* (inicialização movida para o FIM do script — precisa rodar depois das declarações) */
 
 /* ═══════════════════ CELULAR ═══════════════════ */
 function initMobile(code){
@@ -490,6 +487,11 @@ function baixar(){
     a.click();
   },'image/png');
 }
+
+/* ═══════════ MODO: PC ou CELULAR? (roda por último) ═══════════ */
+const params = new URLSearchParams(location.search);
+const fotoSession = params.get('foto');
+if (fotoSession) { initMobile(fotoSession); } else { initDesktop(); }
 </script>
 </body>
 </html>
