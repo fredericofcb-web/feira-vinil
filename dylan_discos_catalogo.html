@@ -78,21 +78,50 @@ const DATA=[{"id": 1, "artist": "George Gershwin / NY Philharmonic", "album": "M
 const WORKER = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev';
 const DB_ID  = '36ca6605-a4aa-8029-8374-e9612992f173';
 
+// ═══ CHAVE DE ACESSO (Fase 0 de segurança) ═══
+// Digitada uma vez por aparelho e guardada no localStorage deste navegador
+// (vale para os 4 aplicativos, que ficam no mesmo endereço do GitHub Pages).
+// Vai para o Worker só no cabeçalho Authorization; nunca fica no código.
+var CHAVE_LS = 'dylan_chave_apps';
+var pedindoChave = false;
+function chaveApps() { try { return localStorage.getItem(CHAVE_LS) || ''; } catch (e) { return ''; } }
+function pedirChaveApps(motivo) {
+  if (pedindoChave) return chaveApps();
+  pedindoChave = true;
+  var c = window.prompt((motivo ? motivo + '\n\n' : '') + 'Digite a chave de acesso dos aplicativos Dylan Discos.\nEla fica guardada só neste aparelho.');
+  pedindoChave = false;
+  c = (c || '').trim();
+  if (c) { try { localStorage.setItem(CHAVE_LS, c); } catch (e) {} }
+  return c;
+}
+function comChave(h) {
+  h = h || {};
+  var c = chaveApps();
+  if (c) h['Authorization'] = 'Bearer ' + c;
+  return h;
+}
+function chaveRecusada() {
+  try { localStorage.removeItem(CHAVE_LS); } catch (e) {}
+  setTimeout(function () { if (!chaveApps()) pedirChaveApps('A chave de acesso foi recusada (errada ou trocada).'); }, 0);
+}
+if (!chaveApps()) setTimeout(function () { if (!chaveApps()) pedirChaveApps(); }, 500);
+
 // ── ESTADO ────────────────────────────────────────────────────────────────
 let soldSet = new Set();
 let pageMap = {};  // itemId → Notion page ID
 let cur = 'all';
 
 // ── NOTION HELPER ─────────────────────────────────────────────────────────
-// IMPORTANTE: NÃO enviamos Notion-Version nem Authorization aqui.
-// O Worker adiciona esses headers server-side (igual ao catalogar.html).
+// IMPORTANTE: NÃO enviamos Notion-Version nem o token do Notion aqui.
+// O Worker adiciona esses headers server-side; daqui só vai a chave de acesso dos aplicativos.
 async function notionReq(path, method='POST', body=null){
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json' }
+    headers: comChave({ 'Content-Type': 'application/json' })
   };
   if(body) opts.body = JSON.stringify(body);
   const res = await fetch(`${WORKER}/v1${path}`, opts);
+  if(res.status === 401) chaveRecusada();
   if(!res.ok){
     const txt = await res.text();
     throw new Error(`HTTP ${res.status}: ${txt}`);

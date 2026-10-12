@@ -532,6 +532,34 @@ var DB_P  = 'a1af6ecd9afa43c287bf8e44a6a650cb';  // Pedidos & Wants
 var DB_PE = 'c1b5097488ea4b6a854223a177170280';  // Pessoas
 var DB_F  = 'e4228a975879432385b35a32e1addf22';  // Fechamentos (salvos pelo PDV)
 var PRXY = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev/v1/';
+
+// ═══ CHAVE DE ACESSO (Fase 0 de segurança) ═══
+// Digitada uma vez por aparelho e guardada no localStorage deste navegador
+// (vale para os 4 aplicativos, que ficam no mesmo endereço do GitHub Pages).
+// Vai para o Worker só no cabeçalho Authorization; nunca fica no código.
+var CHAVE_LS = 'dylan_chave_apps';
+var pedindoChave = false;
+function chaveApps() { try { return localStorage.getItem(CHAVE_LS) || ''; } catch (e) { return ''; } }
+function pedirChaveApps(motivo) {
+  if (pedindoChave) return chaveApps();
+  pedindoChave = true;
+  var c = window.prompt((motivo ? motivo + '\n\n' : '') + 'Digite a chave de acesso dos aplicativos Dylan Discos.\nEla fica guardada só neste aparelho.');
+  pedindoChave = false;
+  c = (c || '').trim();
+  if (c) { try { localStorage.setItem(CHAVE_LS, c); } catch (e) {} }
+  return c;
+}
+function comChave(h) {
+  h = h || {};
+  var c = chaveApps();
+  if (c) h['Authorization'] = 'Bearer ' + c;
+  return h;
+}
+function chaveRecusada() {
+  try { localStorage.removeItem(CHAVE_LS); } catch (e) {}
+  setTimeout(function () { if (!chaveApps()) pedirChaveApps('A chave de acesso foi recusada (errada ou trocada).'); }, 0);
+}
+if (!chaveApps()) setTimeout(function () { if (!chaveApps()) pedirChaveApps(); }, 500);
 var TAXAS = {1:0, 2:3.49, 3:4.99, 4:6.49, 6:8.49, 10:12.49, 12:14.49};
 
 // Data LOCAL (corrige bug: toISOString usa UTC e vira o dia às ~21h no Brasil)
@@ -610,13 +638,19 @@ function hideAle(id){ document.getElementById(id).classList.remove('vis'); }
 function nReq(method, path, body) {
   var opts = {
     method: method,
-    headers: {
+    headers: comChave({
       'Content-Type': 'application/json'
-    }
+    })
   };
   if (body) opts.body = JSON.stringify(body);
   return fetch(PRXY+path, opts).then(function(r) {
     return r.json().then(function(data) {
+      // Chave ausente/errada: a mensagem NÃO começa com "[Notion", então a venda vai para a
+      // fila do aparelho (isNetErr) e é reenviada depois que a chave certa for digitada.
+      if (r.status === 401 && data && data.code === 'unauthorized') {
+        chaveRecusada();
+        throw new Error('Chave de acesso recusada pelo servidor');
+      }
       // Notion retorna {object:'error'} em caso de falha — lança o erro para ser capturado
       if (data && data.object === 'error') {
         var msg = '[Notion ' + (data.status||'err') + '] ' + (data.message||'Erro desconhecido') + (data.code ? ' ('+data.code+')' : '');
@@ -1304,7 +1338,7 @@ async function enviarJob(job) {
       try {
         var upRes = await fetch(PRXY+'upload-image', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: comChave({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ base64: it.fotoBase64, filename: 'pnc-'+Date.now()+'-'+i+'.jpg', mime: it.fotoMime })
         });
         var upData = await upRes.json();
