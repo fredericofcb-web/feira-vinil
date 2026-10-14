@@ -463,10 +463,40 @@ var DB_E = 'f017299ec289407790e49194971ee03e';
 var DB_L = '078c0b6d1c0443aa9b90f3b385dafb11';
 var PRXY = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev/v1/';
 
+// ═══ CHAVE DE ACESSO (Fase 0 de segurança) ═══
+// Digitada uma vez por aparelho e guardada no localStorage deste navegador
+// (vale para os 4 aplicativos, que ficam no mesmo endereço do GitHub Pages).
+// Vai para o Worker só no cabeçalho Authorization; nunca fica no código.
+var CHAVE_LS = 'dylan_chave_apps';
+var pedindoChave = false;
+function chaveApps() { try { return localStorage.getItem(CHAVE_LS) || ''; } catch (e) { return ''; } }
+function pedirChaveApps(motivo) {
+  if (pedindoChave) return chaveApps();
+  pedindoChave = true;
+  var c = window.prompt((motivo ? motivo + '\n\n' : '') + 'Digite a chave de acesso dos aplicativos Dylan Discos.\nEla fica guardada só neste aparelho.');
+  pedindoChave = false;
+  c = (c || '').trim();
+  if (c) { try { localStorage.setItem(CHAVE_LS, c); } catch (e) {} }
+  return c;
+}
+function comChave(h) {
+  h = h || {};
+  var c = chaveApps();
+  if (c) h['Authorization'] = 'Bearer ' + c;
+  return h;
+}
+function chaveRecusada() {
+  try { localStorage.removeItem(CHAVE_LS); } catch (e) {}
+  setTimeout(function () { if (!chaveApps()) pedirChaveApps('A chave de acesso foi recusada (errada ou trocada).'); }, 0);
+}
+if (!chaveApps()) setTimeout(function () { if (!chaveApps()) pedirChaveApps(); }, 500);
 
 // Busca no Discogs pelo Worker (o token do Discogs fica guardado só lá, como secret).
 function discogsBusca(params) {
-  return fetch(PRXY+'discogs/search?'+params);
+  return fetch(PRXY+'discogs/search?'+params, { headers: comChave() }).then(function(r){
+    if (r.status === 401) chaveRecusada();
+    return r;
+  });
 }
 // Erro da busca no Discogs: interrompe as buscas seguintes e leva a mensagem certa para a tela.
 function ErroDiscogs(msg) { this.message = msg; }
@@ -489,7 +519,7 @@ async function discogsResultados(params) {
     discogsLiberadoEm = Date.now() + espera * 1000;
     throw new ErroDiscogs(msgEspera(espera));
   }
-  if (r.status === 401) throw new ErroDiscogs('Busca recusada pelo servidor (chave de acesso).');
+  if (r.status === 401) throw new ErroDiscogs('Chave de acesso recusada. Digite a chave e tente de novo.');
   if (r.status === 503) throw new ErroDiscogs('Busca no Discogs não está configurada no servidor.');
   var st = d && d.status;
   if (st === 401 || st === 403) throw new ErroDiscogs('O Discogs recusou a busca (token do Discogs no servidor). Avise o responsável.');
@@ -512,9 +542,12 @@ var lotesCache = [];
 
 // ═══ NOTION REQUEST (via Worker, sem token no front-end) ═══
 function nReq(method, path, body) {
-  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+  var opts = { method: method, headers: comChave({ 'Content-Type': 'application/json' }) };
   if (body) opts.body = JSON.stringify(body);
-  return fetch(PRXY+path, opts).then(function(r){ return r.json(); });
+  return fetch(PRXY+path, opts).then(function(r){
+    if (r.status === 401) chaveRecusada();
+    return r.json();
+  });
 }
 
 // ═══ NAVEGAÇÃO ═══

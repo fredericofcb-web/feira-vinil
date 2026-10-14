@@ -170,6 +170,44 @@
 <script>
 const WORKER = 'https://broad-unit-4b9cnotion-proxy.frederico-fcb.workers.dev';
 
+// ═══ CHAVE DE ACESSO (Fase 0 de segurança) ═══
+// Digitada uma vez por aparelho e guardada no localStorage deste navegador
+// (vale para os 4 aplicativos, que ficam no mesmo endereço do GitHub Pages).
+// Vai para o Worker só no cabeçalho Authorization; nunca fica no código.
+var CHAVE_LS = 'dylan_chave_apps';
+var pedindoChave = false;
+function chaveApps() { try { return localStorage.getItem(CHAVE_LS) || ''; } catch (e) { return ''; } }
+function pedirChaveApps(motivo) {
+  if (pedindoChave) return chaveApps();
+  pedindoChave = true;
+  var c = window.prompt((motivo ? motivo + '\n\n' : '') + 'Digite a chave de acesso dos aplicativos Dylan Discos.\nEla fica guardada só neste aparelho.');
+  pedindoChave = false;
+  c = (c || '').trim();
+  if (c) { try { localStorage.setItem(CHAVE_LS, c); } catch (e) {} }
+  return c;
+}
+function comChave(h) {
+  h = h || {};
+  var c = chaveApps();
+  if (c) h['Authorization'] = 'Bearer ' + c;
+  return h;
+}
+function chaveRecusada() {
+  try { localStorage.removeItem(CHAVE_LS); } catch (e) {}
+  setTimeout(function () { if (!chaveApps()) pedirChaveApps('A chave de acesso foi recusada (errada ou trocada).'); }, 0);
+}
+// No computador a chave é pedida na primeira vez que for usada (o celular do QR não precisa dela).
+function comChaveDesktop(h) { if (!chaveApps()) pedirChaveApps(); return comChave(h); }
+function conferir401(res) { if (res.status === 401) chaveRecusada(); return res; }
+
+// Link do QR assinado com a chave: só permite enviar UMA foto para ESTA sessão, por 1 hora.
+async function assinarFoto(code, exp) {
+  const enc = new TextEncoder();
+  const k = await crypto.subtle.importKey('raw', enc.encode(chaveApps()), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(`foto:${code}:${exp}`)));
+  return btoa(String.fromCharCode(...mac)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 /* (inicialização movida para o FIM do script — precisa rodar depois das declarações) */
 
 /* ═══════════════════ CELULAR ═══════════════════ */
@@ -185,9 +223,13 @@ function initMobile(code){
     st.textContent = '⏳ Comprimindo e enviando…'; st.className='status';
     try{
       const blob = await comprimir(f, 1600, .85);
-      const res = await fetch(`${WORKER}/v1/foto/${code}`, {
+      const assinatura = new URLSearchParams(location.search);
+      const exp = assinatura.get('exp'), sig = assinatura.get('sig');
+      const extra = exp && sig ? `?exp=${encodeURIComponent(exp)}&sig=${encodeURIComponent(sig)}` : '';
+      const res = await fetch(`${WORKER}/v1/foto/${code}${extra}`, {
         method:'POST', headers:{'Content-Type':'image/jpeg'}, body: blob
       });
+      if(res.status===401) throw new Error('QR expirado. Gere um novo QR no computador.');
       if(!res.ok) throw new Error('HTTP '+res.status);
       st.textContent = '✅ Foto enviada! Confira no PC. Pode tirar outra se quiser.';
       st.className='status ok';
@@ -282,7 +324,7 @@ async function buscarVNL(){
   if(!cod) return setStatus('vnlStatus','Digite um código.','err');
   setStatus('vnlStatus','⏳ Buscando no Estoque…');
   try{
-    const res = await fetch(`${WORKER}/v1/vnl?codigo=${cod}`);
+    const res = conferir401(await fetch(`${WORKER}/v1/vnl?codigo=${cod}`, { headers: comChaveDesktop() }));
     const d = await res.json();
     if(!res.ok) throw new Error(d.error==='not_found' ? `Código ${cod} não existe no Estoque` : (d.error||'erro'));
     dados = d;
@@ -319,7 +361,7 @@ async function usarCapaEstoque(){
   if(!dados.imagem) return;
   setStatus('fotoStatus','⏳ Baixando capa do estoque…');
   try{
-    const res = await fetch(`${WORKER}/v1/img-proxy?u=${encodeURIComponent(dados.imagem)}`);
+    const res = conferir401(await fetch(`${WORKER}/v1/img-proxy?u=${encodeURIComponent(dados.imagem)}`, { headers: comChaveDesktop() }));
     if(!res.ok) throw new Error('proxy HTTP '+res.status+' (domínio permitido no Worker?)');
     foto = await lerImagem(await res.blob()); resetFoto();
     setStatus('fotoStatus','✅ Capa do estoque carregada','ok');
@@ -328,16 +370,22 @@ async function usarCapaEstoque(){
 
 /* ─────────── Foto via QR / celular ─────────── */
 function novoCodigo(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='';
-  for(let i=0;i<5;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+  const r=crypto.getRandomValues(new Uint32Array(12));
+  for(let i=0;i<12;i++) s+=c[r[i]%c.length]; return s; }
 
 let sess = null;
-function abrirQR(){
+async function abrirQR(){
   if(location.protocol==='file:'){
     setStatus('fotoStatus','⚠️ O QR só funciona com a página hospedada (GitHub Pages), não em file://','err');
     return;
   }
+  if(!chaveApps()) pedirChaveApps();
   sess = novoCodigo();
-  const link = `${location.origin}${location.pathname}?foto=${sess}`;
+  let link = `${location.origin}${location.pathname}?foto=${sess}`;
+  if(chaveApps()){
+    const exp = Math.floor(Date.now()/1000) + 3600;
+    link += `&exp=${exp}&sig=${await assinarFoto(sess, exp)}`;
+  }
   document.getElementById('qrcode').innerHTML='';
   new QRCode(document.getElementById('qrcode'), {text:link, width:196, height:196});
   document.getElementById('sessCode').textContent = sess;
@@ -351,12 +399,12 @@ function fecharQR(){ document.getElementById('qrModal').classList.remove('open')
 async function checarFoto(){
   if(!sess) return;
   try{
-    const res = await fetch(`${WORKER}/v1/foto/${sess}`);
+    const res = conferir401(await fetch(`${WORKER}/v1/foto/${sess}`, { headers: comChave() }));
     if(res.status===404) return; // ainda nada
     if(!res.ok) throw new Error('HTTP '+res.status);
     const blob = await res.blob();
     foto = await lerImagem(blob); resetFoto();
-    fetch(`${WORKER}/v1/foto/${sess}`, {method:'DELETE'}); // limpeza
+    fetch(`${WORKER}/v1/foto/${sess}`, {method:'DELETE', headers: comChave()}); // limpeza
     fecharQR();
     setStatus('fotoStatus','✅ Foto recebida do celular!','ok');
   }catch(err){ document.getElementById('pollStatus').textContent='Erro: '+err.message; }
