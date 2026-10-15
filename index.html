@@ -206,6 +206,17 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <div id="aVok" class="ale ao"></div>
   <div id="aVload" class="ale al"></div>
 
+  <!-- RESERVAS DO SITE -->
+  <div class="card" id="resCard">
+    <div class="cl">Reservas do site</div>
+    <div id="resEstado" style="font-size:14px;line-height:1.5;color:var(--tx2)">Consultando...</div>
+    <div id="resLista" style="font-size:13px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn bp" id="btnResPausar" style="flex:2" onclick="pausarReservas('pausar')">⏸ Pausar reservas hoje</button>
+      <button class="btn" id="btnResAtualizar" style="flex:1;background:var(--bg3);color:var(--tx)" onclick="carregarReservas()">↻</button>
+    </div>
+  </div>
+
   <!-- BUSCA -->
   <div class="card">
     <div class="cl">Localizar disco</div>
@@ -764,6 +775,8 @@ async function adicionarVarios() {
   if (!nums.length) { showAle('aV','ae','Cole pelo menos um número, ex: 741 519 520'); return; }
   if (nums.length > 50) { showAle('aV','ae','Máximo de 50 discos por vez ('+nums.length+' colados).'); return; }
 
+  if (!reservasSite && !window.confirm('Não consegui consultar as reservas do site. Algum destes discos pode estar reservado online.\nAdicionar mesmo assim?')) return;
+
   var btn = document.getElementById('btnMulti');
   btn.disabled = true;
   hideAle('aV'); hideAle('aVok');
@@ -800,12 +813,22 @@ async function adicionarVarios() {
     });
   }
 
-  var ok = [], naoAchou = [], vendido = [], jaTem = [], reservado = [];
+  // Discos segurados por pedido do site: confirmar antes, como no disco avulso. Cancelar = não adiciona esses.
+  var doSiteAntes = nums.filter(function(n){ return achados[n] && achados[n].status !== 'Vendido' && reservaDoSite(n); });
+  var pularSite = false;
+  if (doSiteAntes.length) {
+    pularSite = !window.confirm('Estes discos estão reservados em pedidos do site:\n' +
+      doSiteAntes.map(function(n){ return 'VNL-' + n + ' (pedido ' + reservaDoSite(n).codigo + ')'; }).join('\n') +
+      '\n\nOK = adicionar mesmo assim.\nCancelar = não adicionar estes discos (os outros entram).');
+  }
+
+  var ok = [], naoAchou = [], vendido = [], jaTem = [], reservado = [], pulados = [];
   nums.forEach(function(n){
     var d = achados[n];
     if (!d) { naoAchou.push(n); return; }
     if (d.status === 'Vendido') { vendido.push(n); return; }
     if (carrinho.find(function(i){ return i.pageId === d.pageId; })) { jaTem.push(n); return; }
+    if (pularSite && reservaDoSite(n)) { pulados.push(n); return; }
     if (d.status === 'Reservado') reservado.push(n);
     carrinho.push({
       tipo:'cadastrado', pageId:d.pageId, artista:d.artista, album:d.album, id:d.id,
@@ -823,6 +846,9 @@ async function adicionarVarios() {
   if (vendido.length)  avisos.push('Já vendidos: '+vendido.join(', '));
   if (jaTem.length)    avisos.push('Já estavam no carrinho: '+jaTem.join(', '));
   if (reservado.length) avisos.push('Adicionados, mas estão como Reservado: '+reservado.join(', '));
+  if (pulados.length) avisos.push('Não adicionados (reservados em pedido do site): ' + pulados.map(function(n){ return n+' ('+reservaDoSite(n).codigo+')'; }).join(', '));
+  var doSite = ok.filter(function(n){ return reservaDoSite(n); });
+  if (doSite.length) avisos.push('Atenção, reservados em pedido do site: ' + doSite.map(function(n){ return n+' ('+reservaDoSite(n).codigo+')'; }).join(', '));
   if (offline)         avisos.push('Sem internet: usei o catálogo baixado no aparelho.');
 
   if (ok.length) {
@@ -1023,8 +1049,78 @@ function restoreCart() {
   }
 }
 
+// ════════════════════════════════════════
+// RESERVAS DO SITE (pausar em dia de feira + conferir antes de vender)
+// ════════════════════════════════════════
+var reservasSite = null;   // {pausadas, ate, pedidos:[{codigo, expira, discos:[vnl]}]} ou null se não carregou
+
+function reservasReq(metodo, corpo) {
+  var opts = { method: metodo, headers: comChave({ 'Content-Type': 'application/json' }) };
+  if (corpo) opts.body = JSON.stringify(corpo);
+  return fetch(PRXY + 'reservas-loja/estado', opts).then(function(r) {
+    if (r.status === 401) { chaveRecusada(); throw new Error('Chave de acesso recusada'); }
+    if (!r.ok) throw new Error('Servidor respondeu ' + r.status);
+    return r.json();
+  });
+}
+function horaBR(iso) {
+  try { return new Date(iso).toLocaleString('pt-BR', { timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+  catch (e) { return iso; }
+}
+function escRes(t) { return String(t).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function renderReservas() {
+  var est = document.getElementById('resEstado'), lista = document.getElementById('resLista'), b = document.getElementById('btnResPausar');
+  if (!reservasSite) {
+    est.innerHTML = '⚠️ Não consegui consultar as reservas do site. Confira antes de vender.';
+    lista.innerHTML = ''; b.textContent = '⏸ Pausar reservas hoje'; b.onclick = function(){ pausarReservas('pausar'); };
+    return;
+  }
+  if (reservasSite.pausadas) {
+    est.innerHTML = '<strong style="color:var(--ye)">⏸ Reservas pausadas</strong> até ' + escRes(horaBR(reservasSite.ate)) + '. O site fecha direto pelo WhatsApp.';
+    b.textContent = '▶ Retomar reservas agora'; b.onclick = function(){ pausarReservas('retomar'); };
+  } else {
+    est.innerHTML = '<strong style="color:var(--gr)">Reservas ligadas.</strong> O site reserva os discos por 24 h.';
+    b.textContent = '⏸ Pausar reservas hoje'; b.onclick = function(){ pausarReservas('pausar'); };
+  }
+  var ps = reservasSite.pedidos || [];
+  lista.innerHTML = ps.length
+    ? '<div style="color:var(--tx2);margin-bottom:4px">Não venda estes sem conferir:</div>' + ps.map(function(p) {
+        return '<div style="padding:6px 0;border-top:1px solid var(--bor)"><strong>' + escRes(p.codigo) + '</strong> · discos ' +
+          p.discos.map(escRes).join(', ') + ' <span style="color:var(--tx3)">· até ' + escRes(horaBR(p.expira)) + '</span></div>';
+      }).join('')
+    : '<div style="color:var(--tx3)">Nenhum disco reservado pelo site agora.</div>';
+}
+function carregarReservas() {
+  document.getElementById('resEstado').textContent = 'Consultando...';
+  return reservasReq('GET').then(function(d){ reservasSite = d; renderReservas(); })
+    .catch(function(){ reservasSite = null; renderReservas(); });
+}
+function pausarReservas(acao) {
+  var msg = acao === 'pausar'
+    ? 'Pausar as reservas do site até 23:59 de hoje?\nO site continua mostrando os discos, mas o carrinho fecha direto pelo WhatsApp. As reservas que já existem continuam valendo.'
+    : 'Retomar as reservas do site agora?';
+  if (!window.confirm(msg)) return;
+  document.getElementById('resEstado').textContent = 'Enviando...';
+  reservasReq('POST', { acao: acao }).then(function(d){
+    reservasSite = d; renderReservas();
+    if (acao === 'pausar' && !d.pausadas) window.alert('Atenção: o servidor não confirmou a pausa. Tente de novo.');
+  }).catch(function(e){
+    window.alert('Não consegui ' + (acao === 'pausar' ? 'pausar' : 'retomar') + ': ' + e.message + '. O estado não mudou.');
+    carregarReservas();
+  });
+}
+// Pedido do site que segura este disco, ou null.
+function reservaDoSite(num) {
+  if (!reservasSite) return null;
+  return (reservasSite.pedidos || []).find(function(p){ return p.discos.indexOf(num) !== -1; }) || null;
+}
+if (chaveApps()) carregarReservas(); else setTimeout(carregarReservas, 4000);
+
 function addCarrinho() {
   if (!discoAtual) return;
+  var rs = reservaDoSite(parseInt(String(discoAtual.id).replace(/\D/g, ''), 10));
+  if (rs && !window.confirm('Este disco está reservado no pedido ' + rs.codigo + ' do site. Vender mesmo assim?')) return;
+  if (!reservasSite && !window.confirm('Não consegui consultar as reservas do site. Este disco pode estar reservado online.\nVender mesmo assim?')) return;
   var jatem = carrinho.find(function(i){ return i.pageId === discoAtual.pageId; });
   if (jatem) { showAle('aVok','ao','⚠️ Este disco já está no carrinho!'); return; }
 
