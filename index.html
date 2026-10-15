@@ -813,12 +813,22 @@ async function adicionarVarios() {
     });
   }
 
-  var ok = [], naoAchou = [], vendido = [], jaTem = [], reservado = [];
+  // Discos segurados por pedido do site: confirmar antes, como no disco avulso. Cancelar = não adiciona esses.
+  var doSiteAntes = nums.filter(function(n){ return achados[n] && achados[n].status !== 'Vendido' && reservaDoSite(n); });
+  var pularSite = false;
+  if (doSiteAntes.length) {
+    pularSite = !window.confirm('Estes discos estão reservados em pedidos do site:\n' +
+      doSiteAntes.map(function(n){ return 'VNL-' + n + ' (pedido ' + reservaDoSite(n).codigo + ')'; }).join('\n') +
+      '\n\nOK = adicionar mesmo assim.\nCancelar = não adicionar estes discos (os outros entram).');
+  }
+
+  var ok = [], naoAchou = [], vendido = [], jaTem = [], reservado = [], pulados = [];
   nums.forEach(function(n){
     var d = achados[n];
     if (!d) { naoAchou.push(n); return; }
     if (d.status === 'Vendido') { vendido.push(n); return; }
     if (carrinho.find(function(i){ return i.pageId === d.pageId; })) { jaTem.push(n); return; }
+    if (pularSite && reservaDoSite(n)) { pulados.push(n); return; }
     if (d.status === 'Reservado') reservado.push(n);
     carrinho.push({
       tipo:'cadastrado', pageId:d.pageId, artista:d.artista, album:d.album, id:d.id,
@@ -836,6 +846,7 @@ async function adicionarVarios() {
   if (vendido.length)  avisos.push('Já vendidos: '+vendido.join(', '));
   if (jaTem.length)    avisos.push('Já estavam no carrinho: '+jaTem.join(', '));
   if (reservado.length) avisos.push('Adicionados, mas estão como Reservado: '+reservado.join(', '));
+  if (pulados.length) avisos.push('Não adicionados (reservados em pedido do site): ' + pulados.map(function(n){ return n+' ('+reservaDoSite(n).codigo+')'; }).join(', '));
   var doSite = ok.filter(function(n){ return reservaDoSite(n); });
   if (doSite.length) avisos.push('Atenção, reservados em pedido do site: ' + doSite.map(function(n){ return n+' ('+reservaDoSite(n).codigo+')'; }).join(', '));
   if (offline)         avisos.push('Sem internet: usei o catálogo baixado no aparelho.');
