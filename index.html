@@ -1687,7 +1687,7 @@ function rowsDaFila(dia) {
         titulo: '⏳ '+it.titulo, valor: it.valorItem, bruto: it.valorBruto,
         pgto: job.pgto, pgto2: job.pgto2 || '', valor2: it.valor2Item || 0,
         origem: it.origem || '—', parcelas: job.parcelas,
-        txn: job.txn, desconto: it.descontoItem, pend: true
+        txn: job.txn, desconto: it.descontoItem, pend: true, obs: it.obs || ''
       });
     });
   });
@@ -1745,7 +1745,8 @@ async function renderResumo() {
         origem: gs('Origem / Propriedade') || origemDoTitulo(titulo) || '—',
         parcelas: gn('Parcelas'),
         desconto: gn('Desconto'),
-        txn: gtxt('ID da Transação') || page.id
+        txn: gtxt('ID da Transação') || page.id,
+        obs: gtxt('Observações')
       };
     });
   } catch(e) {
@@ -1786,6 +1787,23 @@ function renderResumoCards(rows) {
   document.getElementById('rTicket').textContent = fmt(ticket);
   var mg = margemEstimada(rows);
   document.getElementById('rMargem').textContent = mg === null ? '—' : '≈ '+fmt(mg);
+}
+
+// Observação digitada pelo operador na venda (gravada como "Obs: ..." no fim do campo Observações). Uma por venda.
+function obsDaRow(v) {
+  var m = /(?:^| \| )Obs: ([\s\S]*)$/.exec(v.obs || '');
+  return m ? m[1].trim() : '';
+}
+function obsPorVenda(rows) {
+  var vistos = {}, out = [];
+  rows.forEach(function(v) {
+    var o = obsDaRow(v);
+    if (!o || vistos[v.txn]) return;
+    vistos[v.txn] = true;
+    var titulos = rows.filter(function(r){ return r.txn === v.txn; }).map(function(r){ return r.titulo; }).join(' + ');
+    out.push({ titulo: titulos, obs: o });
+  });
+  return out;
 }
 
 // Monta o texto do fechamento. detalhado=true lista disco por disco (vai pro Notion);
@@ -1832,6 +1850,11 @@ function gerarTextoFechamento(rows, dia, detalhado) {
 
   txt += '\n💳 TOTAL POR PAGAMENTO:\n';
   Object.keys(pgtosDia).forEach(function(k){ txt += '  '+k+': '+fmt(pgtosDia[k])+'\n'; });
+  var obsVendas = obsPorVenda(rows);
+  if (obsVendas.length) {
+    txt += '\n📝 OBSERVAÇÕES:\n';
+    obsVendas.forEach(function(o){ txt += '  • '+o.titulo+': '+o.obs+'\n'; });
+  }
   if (pend > 0) txt += '\n⏳ Atenção: '+pend+' registro(s) ainda no aparelho, aguardando internet.\n';
   return txt;
 }
@@ -1934,10 +1957,11 @@ function renderVendasAgrupadas(rows) {
     var parcelasInfo = itens[0].parcelas > 1 ? ' · '+itens[0].parcelas+'x' : '';
     var titulos = itens.map(function(i){ return i.titulo; }).join(' + ');
     var qtdLabel = itens.length > 1 ? itens.length+' discos' : '1 disco';
+    var obsVenda = obsPorVenda(itens)[0];
 
     html += '<div class="venda-row">'+
       '<div class="venda-cov-ph">'+(itens.length>1?'📦':'🎵')+'</div>'+
-      '<div style="min-width:0;flex:1"><div class="venda-art" style="white-space:normal">'+esc(titulos)+'</div><div class="venda-sub">'+qtdLabel+'</div></div>'+
+      '<div style="min-width:0;flex:1"><div class="venda-art" style="white-space:normal">'+esc(titulos)+'</div><div class="venda-sub">'+qtdLabel+'</div>'+(obsVenda ? '<div class="venda-sub" style="white-space:normal;color:var(--ye)">📝 '+esc(obsVenda.obs)+'</div>' : '')+'</div>'+
       '<div style="margin-left:auto;text-align:right;flex-shrink:0"><div class="venda-val">'+fmt(total)+'</div><div class="venda-pgto">'+esc(pgto||'')+esc(parcelasInfo)+'</div></div></div>';
   });
   document.getElementById('vendasLista').innerHTML = html;
