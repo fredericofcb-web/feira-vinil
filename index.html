@@ -775,6 +775,8 @@ async function adicionarVarios() {
   if (!nums.length) { showAle('aV','ae','Cole pelo menos um número, ex: 741 519 520'); return; }
   if (nums.length > 50) { showAle('aV','ae','Máximo de 50 discos por vez ('+nums.length+' colados).'); return; }
 
+  if (!reservasSite && !window.confirm('Não consegui consultar as reservas do site. Algum destes discos pode estar reservado online.\nAdicionar mesmo assim?')) return;
+
   var btn = document.getElementById('btnMulti');
   btn.disabled = true;
   hideAle('aV'); hideAle('aVok');
@@ -1107,6 +1109,7 @@ function addCarrinho() {
   if (!discoAtual) return;
   var rs = reservaDoSite(parseInt(String(discoAtual.id).replace(/\D/g, ''), 10));
   if (rs && !window.confirm('Este disco está reservado no pedido ' + rs.codigo + ' do site. Vender mesmo assim?')) return;
+  if (!reservasSite && !window.confirm('Não consegui consultar as reservas do site. Este disco pode estar reservado online.\nVender mesmo assim?')) return;
   var jatem = carrinho.find(function(i){ return i.pageId === discoAtual.pageId; });
   if (jatem) { showAle('aVok','ao','⚠️ Este disco já está no carrinho!'); return; }
 
