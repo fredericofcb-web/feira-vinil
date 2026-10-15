@@ -218,6 +218,15 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     <div style="font-size:12px;color:var(--tx3);margin-top:7px">Digite o número do ID (sem VNL) e toque em Buscar</div>
   </div>
 
+  <!-- VÁRIOS CÓDIGOS -->
+  <div class="card">
+    <div class="cl">Vários discos de uma vez</div>
+    <textarea class="inp" id="multiInput" rows="2" placeholder="Ex: 741 519 520"
+      style="resize:vertical;font-size:15px"></textarea>
+    <div style="font-size:12px;color:var(--tx3);margin:7px 0 10px">Cole os números (separados por espaço, vírgula ou linha). Todos vão direto pro carrinho.</div>
+    <button class="btn bp" id="btnMulti" onclick="adicionarVarios()">🛒 Adicionar todos ao carrinho</button>
+  </div>
+
   <!-- DISCO ENCONTRADO -->
   <div class="card" id="discoCard" style="display:none">
     <div class="disco-wrap">
@@ -691,29 +700,7 @@ async function buscar() {
       return;
     }
 
-    var page = res.results[0];
-    var p = page.properties;
-
-    function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
-    function gr(f){ try{ return p[f].rich_text[0].plain_text; }catch(e){ return ''; } }
-    function gs(f){ try{ return p[f].select.name; }catch(e){ return '—'; } }
-    function gms(f){ try{ return p[f].multi_select.map(function(x){ return x.name; }).join(', ')||'—'; }catch(e){ return '—'; } }
-    function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
-
-    var coverUrl = '';
-    try {
-      var imgs = p['Imagem da Capa'] && p['Imagem da Capa'].files;
-      if (imgs && imgs.length > 0) {
-        coverUrl = imgs[0].type === 'external' ? imgs[0].external.url : (imgs[0].file ? imgs[0].file.url : '');
-      }
-    } catch(e) {}
-
-    var d = {
-      id:'VNL-'+num, artista: gt('Título/Artista/Banda') || '(sem título)', album: gr('Álbum'),
-      preco: gn('Preço Final'), custo: gn('Valor de Custo'), status: gs('Status'),
-      condicao: gs('Condição DISCO'), local: gms('Localização'), cat: gs('Categoria'),
-      origem: gs('Origem / Propriedade'), coverUrl: coverUrl, pageId: page.id
-    };
+    var d = discoDaPagina(res.results[0], num);
 
     if (d.status === 'Vendido') {
       showAle('aV','ae','VNL-'+num+' já foi vendido.');
@@ -732,6 +719,117 @@ async function buscar() {
     }
   }
   document.getElementById('btnBuscar').disabled = false;
+}
+
+// Monta o disco a partir de uma página do Estoque (busca única e vários códigos)
+function discoDaPagina(page, num) {
+  var p = page.properties;
+
+  function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
+  function gr(f){ try{ return p[f].rich_text[0].plain_text; }catch(e){ return ''; } }
+  function gs(f){ try{ return p[f].select.name; }catch(e){ return '—'; } }
+  function gms(f){ try{ return p[f].multi_select.map(function(x){ return x.name; }).join(', ')||'—'; }catch(e){ return '—'; } }
+  function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
+
+  var coverUrl = '';
+  try {
+    var imgs = p['Imagem da Capa'] && p['Imagem da Capa'].files;
+    if (imgs && imgs.length > 0) {
+      coverUrl = imgs[0].type === 'external' ? imgs[0].external.url : (imgs[0].file ? imgs[0].file.url : '');
+    }
+  } catch(e) {}
+
+  return {
+    id:'VNL-'+num, artista: gt('Título/Artista/Banda') || '(sem título)', album: gr('Álbum'),
+    preco: gn('Preço Final'), custo: gn('Valor de Custo'), status: gs('Status'),
+    condicao: gs('Condição DISCO'), local: gms('Localização'), cat: gs('Categoria'),
+    origem: gs('Origem / Propriedade'), coverUrl: coverUrl, pageId: page.id
+  };
+}
+
+// ════════════════════════════════════════
+// VÁRIOS CÓDIGOS — adiciona uma lista inteira ao carrinho (ex: pedido do WhatsApp)
+// ════════════════════════════════════════
+function lerCodigos(txt) {
+  var nums = [];
+  (String(txt||'').match(/\d+/g) || []).forEach(function(x){
+    var n = parseInt(x, 10);
+    if (n && nums.indexOf(n) === -1) nums.push(n);
+  });
+  return nums;
+}
+
+async function adicionarVarios() {
+  var nums = lerCodigos(document.getElementById('multiInput').value);
+  if (!nums.length) { showAle('aV','ae','Cole pelo menos um número, ex: 741 519 520'); return; }
+  if (nums.length > 50) { showAle('aV','ae','Máximo de 50 discos por vez ('+nums.length+' colados).'); return; }
+
+  var btn = document.getElementById('btnMulti');
+  btn.disabled = true;
+  hideAle('aV'); hideAle('aVok');
+  showAle('aVload','al','Buscando '+nums.length+' disco(s)...');
+
+  var achados = {};   // num → disco
+  var offline = false;
+  try {
+    var res = await nReq('POST', 'databases/'+DB_E+'/query', {
+      filter: { or: nums.map(function(n){ return { property:'Código', unique_id:{ equals:n } }; }) },
+      page_size: 100
+    });
+    (res.results || []).forEach(function(page){
+      var n = 0;
+      try { n = page.properties['Código'].unique_id.number; } catch(e) {}
+      if (n) achados[n] = discoDaPagina(page, n);
+    });
+  } catch(e) {
+    // Sem internet: usa o catálogo baixado no aparelho
+    if (!catalogo.length) {
+      hideAle('aVload');
+      showAle('aV','ae','Erro: '+e.message+'<br/>Dica: baixe o catálogo na aba 🔍 pra funcionar offline.');
+      btn.disabled = false;
+      return;
+    }
+    offline = true;
+    nums.forEach(function(n){
+      var c = catalogo.find(function(x){ return x.cod === n; });
+      if (c) achados[n] = {
+        id:'VNL-'+n, artista: c.ar || '(sem título)', album: c.al || '',
+        preco: c.pr || 0, custo: c.cu || 0, status: c.st || 'Disponível',
+        origem: c.og || '—', coverUrl: '', pageId: c.pid
+      };
+    });
+  }
+
+  var ok = [], naoAchou = [], vendido = [], jaTem = [], reservado = [];
+  nums.forEach(function(n){
+    var d = achados[n];
+    if (!d) { naoAchou.push(n); return; }
+    if (d.status === 'Vendido') { vendido.push(n); return; }
+    if (carrinho.find(function(i){ return i.pageId === d.pageId; })) { jaTem.push(n); return; }
+    if (d.status === 'Reservado') reservado.push(n);
+    carrinho.push({
+      tipo:'cadastrado', pageId:d.pageId, artista:d.artista, album:d.album, id:d.id,
+      preco:d.preco, custo:d.custo, coverUrl:d.coverUrl, origem:d.origem
+    });
+    ok.push(n);
+  });
+
+  if (ok.length) { saveCart(); renderCarrinho(); atualizaBadge(); }
+  hideAle('aVload');
+  btn.disabled = false;
+
+  var avisos = [];
+  if (naoAchou.length) avisos.push('Não encontrados: '+naoAchou.join(', '));
+  if (vendido.length)  avisos.push('Já vendidos: '+vendido.join(', '));
+  if (jaTem.length)    avisos.push('Já estavam no carrinho: '+jaTem.join(', '));
+  if (reservado.length) avisos.push('Adicionados, mas estão como Reservado: '+reservado.join(', '));
+  if (offline)         avisos.push('Sem internet: usei o catálogo baixado no aparelho.');
+
+  if (ok.length) {
+    document.getElementById('multiInput').value = '';
+    showAle('aVok','ao','✓ '+ok.length+' disco(s) adicionado(s) ao carrinho.');
+  }
+  if (avisos.length) showAle('aV', ok.length ? 'aw' : 'ae', avisos.join('<br/>'));
 }
 
 // Busca no catálogo local (modo offline)
