@@ -503,23 +503,77 @@ function discogsBusca(params) {
 }
 // Erro da busca no Discogs: interrompe as buscas seguintes e leva a mensagem certa para a tela.
 function ErroDiscogs(msg) { this.message = msg; }
-var discogsLiberadoEm = 0; // até quando o Discogs pediu para esperar (limite de buscas)
+// Proteção do limite do Discogs (60 por minuto, contado pelo Discogs, não pela tela):
+// - resultados guardados por 30 min nesta aba: a mesma consulta não vai de novo ao Discogs;
+// - a mesma consulta em andamento é reaproveitada, nunca disparada duas vezes;
+// - no máximo DISCOGS_MAX_POR_CLIQUE chamadas por clique e DISCOGS_MAX_POR_MIN por minuto (todas as abas do aparelho);
+// - depois de um 429, nenhuma chamada até acabar a espera (vale também ao recarregar a página);
+// - nada é repetido sozinho: quem decide tentar de novo é a pessoa.
+var DISCOGS_CACHE_MS = 30 * 60 * 1000;
+var DISCOGS_MAX_POR_MIN = 30;
+var DISCOGS_MAX_POR_CLIQUE = 3;
+var DISCOGS_LS_ESPERA = 'dylan_discogs_espera';
+var DISCOGS_LS_CHAMADAS = 'dylan_discogs_chamadas';
+var discogsCache = {};      // params → { em, results }
+var discogsEmAndamento = {}; // params → Promise
+var discogsLiberadoEm = 0;  // até quando o Discogs pediu para esperar (limite de buscas)
+var discogsAcao = null;     // código do clique atual, vai para o log do Worker (sem dados pessoais)
+var discogsAcaoN = 0;
+function lsLer(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsGravar(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function discogsEsperaAte() {
+  var salvo = parseInt(lsLer(DISCOGS_LS_ESPERA) || '0', 10) || 0;
+  return Math.max(discogsLiberadoEm, salvo);
+}
+function discogsEsperar(segundos) {
+  discogsLiberadoEm = Date.now() + segundos * 1000;
+  lsGravar(DISCOGS_LS_ESPERA, String(discogsLiberadoEm));
+}
+// Conta as chamadas do último minuto; devolve quantos segundos faltam se o teto local foi atingido.
+function discogsReservarChamada() {
+  var agora = Date.now(), lista = [];
+  try { lista = JSON.parse(lsLer(DISCOGS_LS_CHAMADAS) || '[]'); } catch (e) {}
+  if (!Array.isArray(lista)) lista = [];
+  lista = lista.filter(function (t) { return typeof t === 'number' && t > agora - 60000 && t <= agora; });
+  if (lista.length >= DISCOGS_MAX_POR_MIN) return Math.max(1, Math.ceil((lista[0] + 60000 - agora) / 1000));
+  lista.push(agora);
+  lsGravar(DISCOGS_LS_CHAMADAS, JSON.stringify(lista));
+  return 0;
+}
 function msgEspera(s) { return 'O Discogs limitou as buscas. Tente de novo em '+s+' segundos.'; }
+function msgTetoLocal(s) { return 'Muitas buscas no último minuto. Aguarde '+s+' segundos para não estourar o limite do Discogs.'; }
 // Faz uma busca e devolve a lista de resultados (vazia só quando o Discogs respondeu sem resultados).
-async function discogsResultados(params) {
-  var falta = Math.ceil((discogsLiberadoEm - Date.now()) / 1000);
+function discogsResultados(params) {
+  var guardado = discogsCache[params];
+  if (guardado && Date.now() - guardado.em < DISCOGS_CACHE_MS) return Promise.resolve(guardado.results);
+  if (discogsEmAndamento[params]) return discogsEmAndamento[params];
+  var p = discogsConsultar(params);
+  discogsEmAndamento[params] = p;
+  var limpar = function () { delete discogsEmAndamento[params]; };
+  p.then(limpar, limpar);
+  return p;
+}
+async function discogsConsultar(params) {
+  // Teto por clique: a cascata (sem filtros, menos palavras, só artista) para depois de 3 chamadas reais.
+  if (discogsAcao && discogsAcaoN >= DISCOGS_MAX_POR_CLIQUE) return [];
+  var falta = Math.ceil((discogsEsperaAte() - Date.now()) / 1000);
   if (falta > 0) throw new ErroDiscogs(msgEspera(falta)); // não chama o Discogs durante a espera
+  var teto = discogsReservarChamada();
+  if (teto > 0) throw new ErroDiscogs(msgTetoLocal(teto));
   var r, d = null;
-  try { r = await discogsBusca(params); }
+  var comAcao = discogsAcao ? params+'&acao='+discogsAcao+'-'+(++discogsAcaoN) : params;
+  try { r = await discogsBusca(comAcao); }
   catch (e) { throw new ErroDiscogs('Sem conexão com o servidor. Verifique a internet e tente de novo.'); }
   try { d = await r.json(); } catch (e) {}
   if (r.ok) {
     if (!d || !Array.isArray(d.results)) throw new ErroDiscogs('Resposta inesperada do servidor. Tente de novo.');
+    discogsCache[params] = { em: Date.now(), results: d.results };
     return d.results;
   }
   if (r.status === 429) {
-    var espera = (d && d.retry_after > 0) ? d.retry_after : 60;
-    discogsLiberadoEm = Date.now() + espera * 1000;
+    var ra = parseInt(r.headers.get('Retry-After') || '', 10);
+    var espera = (d && d.retry_after > 0) ? d.retry_after : (ra > 0 ? ra : 60);
+    discogsEsperar(espera);
     throw new ErroDiscogs(msgEspera(espera));
   }
   if (r.status === 401) throw new ErroDiscogs('Chave de acesso recusada. Digite a chave e tente de novo.');
@@ -528,6 +582,19 @@ async function discogsResultados(params) {
   if (st === 401 || st === 403) throw new ErroDiscogs('O Discogs recusou a busca (token do Discogs no servidor). Avise o responsável.');
   if (st === 0) throw new ErroDiscogs('O servidor não conseguiu falar com o Discogs. Tente de novo em instantes.');
   throw new ErroDiscogs('O Discogs está com problema agora (erro '+(st||r.status)+'). Tente mais tarde.');
+}
+// Uma busca por vez: cliques repetidos (ou Enter + botão, ou o leitor lendo o mesmo código várias vezes)
+// enquanto uma busca está em andamento são ignorados.
+var discogsOcupado = false;
+function umaBuscaPorVez(tipo, fn) {
+  return async function () {
+    if (discogsOcupado) return;
+    discogsOcupado = true;
+    discogsAcao = tipo + '-' + Math.random().toString(36).slice(2, 8);
+    discogsAcaoN = 0;
+    try { return await fn.apply(this, arguments); }
+    finally { discogsOcupado = false; discogsAcao = null; }
+  };
 }
 function msgErroBusca(e) { return e instanceof ErroDiscogs ? e.message : 'Erro ao buscar. Verifique a conexão.'; }
 // Token do Discogs removido do código: as buscas passam pelo Worker (rota /v1/discogs/search).
@@ -848,6 +915,7 @@ function iniciarScanner() {
   ST.scn=new Html5Qrcode('reader');
   ST.scn.start({facingMode:'environment'}, cfg,
     function(code) {
+      if(!ST.scn) return; // o leitor chama várias vezes por segundo: só a primeira leitura busca
       pararScanner();
       hideAlert('aS');
       document.getElementById('eanM').value=code;
@@ -877,7 +945,7 @@ function goScan() {
   document.getElementById('btnStopScan').style.display='none';
   document.getElementById('eanM').value='';
 }
-async function buscarEAN(ean) {
+var buscarEAN = umaBuscaPorVez('ean', async function(ean) {
   ean=ean.trim(); if(!ean) return;
   if(ST.scn){ ST.scn.stop().catch(function(){}); ST.scn=null; }
   alert_('aS','al','Buscando: '+ean+'...',true);
@@ -891,7 +959,7 @@ async function buscarEAN(ean) {
     alert_('aS','ae','Não encontrado. Tente a busca inteligente.');
     setTimeout(function(){goBusca();},2000);
   } catch(e) { alert_('aS','ae',msgErroBusca(e)); }
-}
+});
 
 // ═══ DISCOGS ═══
 async function loadRelease(id, basic) {
@@ -977,7 +1045,7 @@ function handleFoto(inp) {
   };
   reader.readAsDataURL(f);
 }
-async function buscaFoto() {
+var buscaFoto = umaBuscaPorVez('foto', async function() {
   var catno=document.getElementById('fCat2').value.trim();
   var art=document.getElementById('fArt2').value.trim();
   var alb=document.getElementById('fAlb2').value.trim();
@@ -1002,11 +1070,11 @@ async function buscaFoto() {
   } else {
     alert_('aF','ae','Nenhum resultado. Tente palavras diferentes.');
   }
-}
+});
 
 // ═══ BUSCA INTELIGENTE ═══
 function goBusca() { mostrar('busca'); }
-async function executarBusca() {
+var executarBusca = umaBuscaPorVez('busca', async function() {
   var q=document.getElementById('bQ').value.trim();
   var art=document.getElementById('bArt').value.trim();
   var alb=document.getElementById('bAlb').value.trim();
@@ -1052,7 +1120,7 @@ async function executarBusca() {
     alert_('aB','ae','Nenhum resultado. Tente variações do nome.');
     document.getElementById('buscaRes').style.display='none';
   }
-}
+});
 
 // ═══ RESULTADOS (compartilhado) ═══
 function mostrarResultados(results, query, tipo) {
@@ -1135,7 +1203,7 @@ function startMic() {
   ST.rec.start();
 }
 function stopMic(){ ST.lst=false; if(ST.rec){ST.rec.stop();ST.rec=null;} document.getElementById('micBtn').classList.remove('ml'); document.getElementById('micBtn').textContent='🎤'; document.getElementById('micSt').textContent='Toque para falar'; }
-async function processarVoz() {
+var processarVoz = umaBuscaPorVez('voz', async function() {
   if(!ST.vtxt) return;
   alert_('aV','al','Buscando...',true);
   var res;
@@ -1149,7 +1217,7 @@ async function processarVoz() {
   } else {
     alert_('aV','ae','Nenhum resultado. Tente palavras diferentes.');
   }
-}
+});
 
 // ═══ FILL FORM ═══
 function fillAI(ai,src) {
