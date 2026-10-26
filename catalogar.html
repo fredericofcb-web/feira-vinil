@@ -494,8 +494,28 @@ function chaveRecusada() {
 }
 if (!chaveApps()) setTimeout(function () { if (!chaveApps()) pedirChaveApps(); }, 500);
 
-// Busca no Discogs pelo Worker (o token do Discogs fica guardado só lá, como secret).
+// Chave de app do Discogs (discogs.com/settings/developers → o app → Consumer Key e Consumer Secret).
+// Com ela a busca sai direto deste navegador e o limite de 60 por minuto conta pelo IP da internet da loja,
+// e não pelo IP de saída da Cloudflare, dividido com outros sites. Só serve para buscar no Discogs em nome do
+// app: o token pessoal do Discogs continua só no Worker. Vazias, a busca vai só pelo Worker.
+var DISCOGS_APP_KEY = '';    // cole a Consumer Key entre as aspas
+var DISCOGS_APP_SECRET = ''; // cole o Consumer Secret entre as aspas
+
+// Busca no Discogs: direto do navegador quando há chave de app. Se a chamada direta falhar (rede, limite ou
+// chave recusada), a mesma busca vai uma vez pelo Worker, que tem o seu próprio limite.
 function discogsBusca(params) {
+  if (!DISCOGS_APP_KEY || !DISCOGS_APP_SECRET) return discogsBuscaWorker(params);
+  var q = params.replace(/(^|&)acao=[^&]*/, '') + '&key=' + encodeURIComponent(DISCOGS_APP_KEY) + '&secret=' + encodeURIComponent(DISCOGS_APP_SECRET);
+  return fetch('https://api.discogs.com/database/search?' + q).then(function (r) {
+    if (r.ok) return r;
+    console.warn('Discogs direto respondeu ' + r.status + '; tentando pelo Worker.');
+    return discogsBuscaWorker(params);
+  }, function () {
+    return discogsBuscaWorker(params);
+  });
+}
+// Busca no Discogs pelo Worker (o token do Discogs fica guardado só lá, como secret).
+function discogsBuscaWorker(params) {
   return fetch(PRXY+'discogs/search?'+params, { headers: comChave() }).then(function(r){
     if (r.status === 401) chaveRecusada();
     return r;
@@ -600,7 +620,7 @@ function umaBuscaPorVez(tipo, fn) {
   };
 }
 function msgErroBusca(e) { return e instanceof ErroDiscogs ? e.message : 'Erro ao buscar. Verifique a conexão.'; }
-// Token do Discogs removido do código: as buscas passam pelo Worker (rota /v1/discogs/search).
+// Token pessoal do Discogs fora do código: as buscas usam a chave de app (direto) ou o Worker (rota /v1/discogs/search).
 
 // Estado global
 var ST = {
