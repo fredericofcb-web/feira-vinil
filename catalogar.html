@@ -512,6 +512,9 @@ function ErroDiscogs(msg) { this.message = msg; }
 var DISCOGS_CACHE_MS = 30 * 60 * 1000;
 var DISCOGS_MAX_POR_MIN = 30;
 var DISCOGS_MAX_POR_CLIQUE = 3;
+// Espera quando o Discogs não diz quanto esperar. O limite dele é contado pelo IP de saída da Cloudflare,
+// compartilhado com outros sites, e o servidor já tentou uma vez de novo: poucos segundos costumam bastar.
+var DISCOGS_ESPERA_PADRAO_S = 10;
 var DISCOGS_LS_ESPERA = 'dylan_discogs_espera';
 var DISCOGS_LS_CHAMADAS = 'dylan_discogs_chamadas';
 var discogsCache = {};      // params → { em, results }
@@ -572,7 +575,7 @@ async function discogsConsultar(params) {
   }
   if (r.status === 429) {
     var ra = parseInt(r.headers.get('Retry-After') || '', 10);
-    var espera = (d && d.retry_after > 0) ? d.retry_after : (ra > 0 ? ra : 60);
+    var espera = (d && d.retry_after > 0) ? d.retry_after : (ra > 0 ? ra : DISCOGS_ESPERA_PADRAO_S);
     discogsEsperar(espera);
     throw new ErroDiscogs(msgEspera(espera));
   }
