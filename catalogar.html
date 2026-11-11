@@ -76,6 +76,21 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 .mc.mg{border-color:var(--grbd);background:var(--grb)}
 .mc.mt{border-color:var(--tebd);background:var(--teb)}
 .mc.mb{border-color:var(--blbd);background:var(--blb)}
+.mc.mr{border-color:var(--orbd);background:var(--orb);grid-column:1/-1;display:flex;align-items:center;gap:12px;text-align:left;padding:14px 16px}
+.mc.mr .mi{margin:0}
+.lb.ln{border-style:dashed;color:var(--ye)}
+.mc.mq{border-color:var(--bor);background:var(--bg2);grid-column:1/-1;display:flex;align-items:center;gap:12px;text-align:left;padding:12px 16px}
+.mc.mq .mi{margin:0;font-size:20px}
+.enxuto [data-extra]{display:none!important}
+.obg{color:var(--re);margin-left:3px}
+.res-item{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--bor)}
+.res-item:first-child{border-top:0}
+.res-item .ri{flex:1;min-width:0}
+.res-item .rt{font-size:14px;font-weight:700;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-item .rs{font-size:11px;color:var(--tx2)}
+.res-item button{width:auto;padding:8px 14px;font-size:13px}
+.lnk{background:none;border:0;color:var(--ye);text-decoration:underline;cursor:pointer;font:inherit;padding:0 0 0 6px}
+.lb .lx{display:block;font-size:10px;color:var(--tx3);font-weight:400}
 .mi{font-size:26px;margin-bottom:6px}
 .mt2{font-size:13px;font-weight:700;color:var(--tx);margin-bottom:2px}
 .ms{font-size:11px;color:var(--tx2)}
@@ -150,6 +165,8 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <div class="mc mg" onclick="goFoto()"><div class="mi">📸</div><div class="mt2">Foto</div><div class="ms">Capa ou label</div></div>
       <div class="mc mt" onclick="goVoz()"><div class="mi">🎙</div><div class="mt2">Voz</div><div class="ms">Fala, eu preencho</div></div>
       <div class="mc mb" onclick="goBusca()"><div class="mi">⌨️</div><div class="mt2">Digitar</div><div class="ms">Busca inteligente</div></div>
+      <div class="mc mr" onclick="goRapido()"><div class="mi">⚡</div><div><div class="mt2">Adicionar rápido</div><div class="ms">À mão, sem Discogs · usa o lote ativo</div></div></div>
+      <div class="mc mq" onclick="goProcurar()"><div class="mi">🔎</div><div><div class="mt2">Procurar disco</div><div class="ms">Achar no estoque e editar</div></div></div>
     </div>
   </div>
   <div class="card">
@@ -159,6 +176,60 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <button class="lb" id="l-me" onclick="setLote('me')">👤 Meu<br><small>Custo livre</small></button>
       <button class="lb" id="l-pa" onclick="setLote('pa')">👨 Pai<br><small>Comissão</small></button>
     </div>
+    <div class="lgrid" id="presetsLote" style="margin-top:7px"></div>
+  </div>
+</div>
+
+<!-- ══ PROCURAR DISCO ══ -->
+<div id="hdr-procurar" class="hdr" style="display:none">
+  <span style="font-size:20px">🔎</span><div><h1>Procurar disco</h1><div class="hdr-s">Achar no estoque e editar</div></div>
+  <button class="back" onclick="voltar('procurar')">← Voltar</button>
+</div>
+<div id="scr-procurar" class="scr">
+  <div id="aP" class="ale ae"></div>
+  <div class="card">
+    <div style="display:flex;gap:7px">
+      <input id="pQ" type="search" placeholder="Artista, álbum ou VNL (ex.: 541)" style="flex:1;font-size:16px;padding:12px;background:var(--bg3);border:1px solid var(--bor);border-radius:8px;color:var(--tx);font-family:inherit" onkeydown="if(event.key==='Enter')procurarDisco()"/>
+      <button class="btn bp" style="width:auto;padding:9px 16px" onclick="procurarDisco()">🔍</button>
+    </div>
+  </div>
+  <div class="card" id="pRes" style="display:none"></div>
+</div>
+
+<!-- ══ NOVO LOTE ══ -->
+<div id="hdr-lote" class="hdr" style="display:none">
+  <span style="font-size:20px">📦</span><div><h1>Novo lote</h1><div class="hdr-s">Cria no Notion e vira o preset ativo</div></div>
+  <button class="back" onclick="voltar('lote')">← Voltar</button>
+</div>
+<div id="scr-lote" class="scr">
+  <div id="aL" class="ale ae"></div>
+  <div class="card">
+    <div class="cl">Lote</div>
+    <div class="fld"><label>Nome do lote *</label><input id="nlNome" type="text" maxlength="100" placeholder="Ex.: Lote 2 - Garimpo Centro"/></div>
+    <div class="g2">
+      <div class="fld"><label>Tipo</label><select id="nlTipo"><option>Compra</option><option>Lote Fechado</option><option>Consignado</option><option>Troca</option><option>Herança/Doação</option></select></div>
+      <div class="fld"><label>Valor investido (R$)</label><input id="nlValor" type="number" inputmode="decimal" step="0.01" min="0" placeholder="300,00" oninput="sugerirCustoLote()"/></div>
+    </div>
+    <div class="fld"><label>Quantidade de discos</label><input id="nlQtd" type="number" inputmode="numeric" step="1" min="0" placeholder="50" oninput="sugerirCustoLote()"/></div>
+  </div>
+  <div class="card">
+    <div class="cl">Preenche em todos os discos do lote</div>
+    <div class="g2">
+      <div class="fld"><label>Propriedade</label><select id="nlProp"><option>Meu</option><option>Pai</option><option>Sociedade</option><option>Consignado</option></select></div>
+      <div class="fld"><label>Custo por disco (R$)</label><input id="nlCusto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="6,00"/></div>
+    </div>
+    <div class="g2">
+      <div class="fld"><label>Localização</label><select id="nlLoc"><option>Caixa A</option><option>Caixa B</option><option>Caixa C</option><option>Premium</option><option>Feira</option><option>Reserva</option></select></div>
+      <div class="fld"><label>País</label><select id="nlPais"><option value="">(cada disco)</option><option>Brasil</option><option>EUA</option><option>Reino Unido</option><option>Europa</option><option>Japão</option><option>Argentina</option><option>Outro</option></select></div>
+    </div>
+    <div class="fld"><label>Prensagem</label><select id="nlPrens"><option value="">(cada disco)</option><option>Nacional</option><option>Importado</option><option>Original</option><option>Relançamento</option><option>Bootleg</option><option>Promo</option></select></div>
+  </div>
+  <button class="btn bg" id="btnLote" onclick="criarLote()">✓ Criar lote no Notion</button>
+  <button class="btn bg" id="btnPreset" onclick="salvarPresetEditado()" style="display:none">✓ Salvar preset</button>
+  <div class="card" style="margin-top:12px" id="nlExistCard">
+    <div class="cl">Ou usar um lote que já existe</div>
+    <select class="lsel" id="nlExist"><option value="">— Escolher —</option></select>
+    <button class="btn bo" style="margin-top:8px" onclick="usarLoteExistente()">Usar este lote com as opções acima</button>
   </div>
 </div>
 
@@ -335,20 +406,21 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <!-- IDENTIFICAÇÃO -->
   <div class="card">
     <div class="cl">Identificação</div>
-    <div class="fld"><label>Artista / Banda</label><input id="fArt" type="text" placeholder="Artista" onblur="checarDuplicata()"/></div>
-    <div class="fld"><label>Álbum / Título</label><input id="fAlb" type="text" placeholder="Álbum" onblur="checarDuplicata()"/></div>
+    <div class="fld"><label>Artista / Banda<span class="obg">*</span></label><input id="fArt" type="text" placeholder="Artista" onblur="checarDuplicata()"/></div>
+    <div class="fld"><label>Álbum / Título<span class="obg">*</span></label><input id="fAlb" type="text" placeholder="Álbum" onblur="checarDuplicata()"/></div>
     <div class="g3">
       <div class="fld"><label>Ano</label><input id="fAno" type="text" placeholder="1977" maxlength="4"/></div>
-      <div class="fld"><label>Formato</label>
+      <div class="fld" data-extra><label>Formato</label>
         <select id="fCat"><option value="LP">LP</option><option value="EP">EP</option><option value='Compacto 7"'>7"</option><option value='Compacto 10"'>10"</option><option value='Compacto 12"'>12"</option><option value="Box Set">Box Set</option><option value="Picture Disc">Picture Disc</option></select>
       </div>
       <div class="fld"><label>Selo</label><input id="fSelo" type="text" placeholder="Atlantic"/></div>
     </div>
+    <div class="fld"><label>Matriz / Sulco <span style="color:var(--tx3)">(o que está gravado perto do selo)</span></label><input id="fMat" type="text" maxlength="300" autocapitalize="characters" placeholder="A: 104.6045 A-1 / B: 104.6045 B-1"/></div>
   </div>
 
   <!-- GÊNERO -->
   <div class="card">
-    <div class="cl">Gênero <span id="gBadge" class="aibadge" style="display:none"><span class="adot"></span>IA sugeriu</span></div>
+    <div data-extra><div class="cl">Gênero <span id="gBadge" class="aibadge" style="display:none"><span class="adot"></span>IA sugeriu</span></div>
     <div class="chips" id="gChips" style="gap:6px">
       <span class="gc" onclick="selG('Rock',this)">Rock</span><span class="gc" onclick="selG('MPB',this)">MPB</span>
       <span class="gc" onclick="selG('Jazz',this)">Jazz</span><span class="gc" onclick="selG('Samba',this)">Samba</span>
@@ -356,7 +428,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <span class="gc" onclick="selG('Pop',this)">Pop</span><span class="gc" onclick="selG('Eletrônico',this)">Eletrônico</span>
       <span class="gc" onclick="selG('Clássico',this)">Clássico</span><span class="gc" onclick="selG('Reggae',this)">Reggae</span>
       <span class="gc" onclick="selG('Country',this)">Country</span><span class="gc" onclick="selG('Outro',this)">Outro</span>
-    </div>
+    </div></div>
     <div class="cl" style="margin-top:13px">Estilo <span id="sBadge" class="aibadge" style="display:none"><span class="adot"></span>IA sugeriu</span></div>
     <div class="chips" id="sChips" style="gap:5px">
       <span class="sc" onclick="togS('Hard Rock',this)">Hard Rock</span><span class="sc" onclick="togS('Classic Rock',this)">Classic Rock</span>
@@ -391,7 +463,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <span class="ch" onclick="selC('c','F - Fair',this,'cr')">F</span>
     </div>
     <div class="g2" style="margin-top:10px">
-      <div class="fld"><label>Tipo de capa</label><select id="fTC"><option>Single</option><option>Gatefold</option><option>Capa Dupla</option><option>Box Set</option><option>Encarte</option><option>Sem Capa</option></select></div>
+      <div class="fld" data-extra><label>Tipo de capa</label><select id="fTC"><option>Single</option><option>Gatefold</option><option>Capa Dupla</option><option>Box Set</option><option>Encarte</option><option>Sem Capa</option></select></div>
       <div class="fld"><label>Raridade</label><select id="fRar"><option>Comum</option><option>Incomum</option><option>Raro</option><option>Muito Raro</option><option>Ultra Raro</option></select></div>
     </div>
   </div>
@@ -400,23 +472,23 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <div class="card">
     <div class="cl">Detalhes técnicos</div>
     <div class="g2">
-      <div class="fld"><label>Prensagem</label><select id="fPr"><option>Original</option><option>Relançamento</option><option>Nacional</option><option>Importado</option><option>Bootleg</option><option>Promo</option></select></div>
-      <div class="fld"><label>País</label><select id="fOr"><option>EUA</option><option>Brasil</option><option>Reino Unido</option><option>Europa</option><option>Japão</option><option>Argentina</option><option>Outro</option></select></div>
+      <div class="fld"><label>Nacional / importado</label><select id="fPr"><option>Original</option><option>Relançamento</option><option>Nacional</option><option>Importado</option><option>Bootleg</option><option>Promo</option></select></div>
+      <div class="fld" data-extra><label>País</label><select id="fOr"><option>EUA</option><option>Brasil</option><option>Reino Unido</option><option>Europa</option><option>Japão</option><option>Argentina</option><option>Outro</option></select></div>
     </div>
-    <div class="fld"><label>Notes</label><textarea id="fNt" placeholder="Encarte incluso, 1ª edição..."></textarea></div>
-    <div class="fld"><label>Curiosidade <span style="color:var(--tx3)">(aparece na loja em "Você sabia?")</span></label><textarea id="fCur" maxlength="1990" placeholder="Uma história ou fato sobre este disco..."></textarea></div>
+    <div class="fld" data-extra><label>Notes</label><textarea id="fNt" placeholder="Encarte incluso, 1ª edição..."></textarea></div>
+    <div class="fld" data-extra><label>Curiosidade <span style="color:var(--tx3)">(aparece na loja em "Você sabia?")</span></label><textarea id="fCur" maxlength="1990" placeholder="Uma história ou fato sobre este disco..."></textarea></div>
   </div>
 
   <!-- PROPRIEDADE -->
   <div class="card">
-    <div class="cl">Propriedade</div>
+    <div class="cl">Propriedade (de quem é)<span class="obg">*</span></div>
     <div class="chips" id="cP">
       <span class="ch" onclick="selC('p','Meu',this,'cb')">Meu</span>
       <span class="ch" onclick="selC('p','Pai',this,'cp')">Pai</span>
       <span class="ch" onclick="selC('p','Sociedade',this,'co')">Sociedade</span>
       <span class="ch" onclick="selC('p','Consignado',this,'cy')">Consignado</span>
     </div>
-    <div class="cl" style="margin-top:12px">Localização <span style="font-size:10px;color:var(--re);margin-left:4px">* obrigatório</span></div>
+    <div class="cl" style="margin-top:12px">Localização</div>
     <div class="chips" id="cL">
       <span class="ch" onclick="selC('l','Caixa A',this,'ct')">Caixa A</span>
       <span class="ch" onclick="selC('l','Caixa B',this,'ct')">Caixa B</span>
@@ -432,11 +504,12 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     <div class="cl">Financeiro</div>
     <div class="g2">
       <div class="fld"><label>Custo (R$)</label><input id="fCu" type="number" placeholder="0,60" step="0.10" min="0" oninput="updM()"/></div>
-      <div class="fld"><label>Preço de venda (R$)</label><input id="fPr2" type="number" placeholder="30,00" step="0.50" min="0" oninput="updM()"/></div>
+      <div class="fld"><label>Preço de venda (R$)<span class="obg">*</span></label><input id="fPr2" type="number" placeholder="30,00" step="0.50" min="0" oninput="updM()"/></div>
     </div>
     <div id="mInf" style="font-size:12px;color:var(--tx3);text-align:right;margin-top:2px"></div>
   </div>
 
+  <button type="button" id="btnMais" class="btn bo" style="display:none;margin-bottom:10px" onclick="maisDetalhes()">＋ Mais detalhes (formato, gênero, tipo de capa, país, notes, curiosidade)</button>
   <div class="save">
     <div id="aForm" class="ale ae"></div>
     <label style="display:flex;gap:10px;align-items:center;padding:12px 2px;font-size:14px;color:var(--tx);cursor:pointer"><input type="checkbox" id="fSite" onchange="rotuloSalvar()" style="width:20px;height:20px;accent-color:var(--gr)"/> Sincronizar com o site (publicar na loja)</label>
@@ -636,6 +709,13 @@ function mostrar(nome) {
 }
 function voltar(de) {
   if (de === 'scan') { pararScanner(); }
+  if (de === 'form' && ST.editId) {
+    var volta = ST.editVolta, rap = ST.editRapido; sairEdicao(); ST.editRapido = false;
+    if (volta) { mostrar('procurar'); return; }
+    if (rap) { goRapido(); return; }
+  }
+  if (de === 'form' && ST.rapido) { ST.rapido = false; rotuloSalvar(); }
+  if (de === 'lote') ST.editPreset = null;
   mostrar('home');
 }
 function novoDisc() {
@@ -652,12 +732,13 @@ function novoDisc() {
   document.getElementById('dupCard').style.display='none';
   document.getElementById('gBadge').style.display='none';
   document.getElementById('sBadge').style.display='none';
-  ['fArt','fAlb','fAno','fSelo','fNt','fCur','fCu','fPr2','fEstC','fArt2','fAlb2','fCat2','fAno2','fSelo2','bCatno','bQ','bArt','bAlb','bAno','bSelo','bCusto'].forEach(function(id){
+  ['fArt','fAlb','fAno','fSelo','fMat','fNt','fCur','fCu','fPr2','fEstC','fArt2','fAlb2','fCat2','fAno2','fSelo2','bCatno','bQ','bArt','bAlb','bAno','bSelo','bCusto'].forEach(function(id){
     var e = document.getElementById(id); if(e) e.value='';
   });
   document.getElementById('fLote').value='';
   document.getElementById('fSite').checked=false; rotuloSalvar();
   document.getElementById('mInf').textContent='';
+  modoEnxuto(false);
   mostrar('home');
 }
 
@@ -878,6 +959,7 @@ function preencherLotesFixos(sel, info) {
 }
 function applyLote() {
   if(!ST.lote) return;
+  var pn = presetAtivo(); if (pn) { aplicarPreset(pn); return; }
   if(ST.lote==='st'){
     seta('fCu','0.60'); selCv('p','Sociedade','co'); selCv('l','Feira','cg');
     var sel=document.getElementById('fLote');
@@ -1252,9 +1334,13 @@ function fillAI(ai,src) {
 // ═══ SALVAR ═══
 async function salvar() {
   var art=document.getElementById('fArt').value.trim();
-  if(!art){ alert_('aForm','ae','⚠️ Preencha o artista!'); return; }
-  if(!ST.cD){ alert_('aForm','ae','⚠️ Selecione a condição do disco!'); return; }
-  if(!ST.loc){ alert_('aForm','ae','⚠️ Selecione a localização!'); return; }
+  // Obrigatórios: artista, álbum, de quem é (propriedade) e preço de venda. O resto pode ficar em branco e ser editado depois.
+  var faltam = [];
+  if(!art) faltam.push('artista');
+  if(!document.getElementById('fAlb').value.trim()) faltam.push('álbum');
+  if(!ST.prop) faltam.push('de quem é (propriedade)');
+  if(!((parseFloat(document.getElementById('fPr2').value)||0) > 0)) faltam.push('preço de venda');
+  if(faltam.length){ alert_('aForm','ae','⚠️ Falta preencher: '+faltam.join(', ')+'.'); return; }
 
   // Última checagem de segurança: se ainda há um alerta de duplicata visível e não dispensado, avisa antes de salvar
   if (document.getElementById('dupCard').style.display === 'block' && !ST.dupDismissed) {
@@ -1274,7 +1360,7 @@ async function salvar() {
     var notes=document.getElementById('fNt').value.trim();
     var curio=document.getElementById('fCur').value.trim();
     var site=document.getElementById('fSite').checked;
-    var prop=ST.prop||'Meu';
+    var prop=ST.prop;
     var catV=document.getElementById('fCat').value;
     var loteId=document.getElementById('fLote').value;
     var cust2=document.getElementById('fEstC').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
@@ -1282,8 +1368,7 @@ async function salvar() {
     var props={
       'Título/Artista/Banda':{title:[{text:{content:art}}]},
       'Álbum':{rich_text:[{text:{content:alb}}]},
-      'Condição DISCO':{select:{name:ST.cD}},
-      'Condição CAPA':{select:{name:ST.cC||ST.cD}},
+
       'Prensagem':{select:{name:document.getElementById('fPr').value}},
       'Tipo de Capa':{select:{name:document.getElementById('fTC').value}},
       'Raridade':{select:{name:document.getElementById('fRar').value}},
@@ -1293,12 +1378,16 @@ async function salvar() {
       'Origem / Propriedade':{select:{name:prop}},
       'Valor de Custo':{number:custo},
       'Preço Final':{number:preco},
-      'Quantidade em Estoque':{number:1},
-      'Localização':{multi_select:[{name:ST.loc}]}
+      'Quantidade em Estoque':{number:1}
     };
+    if(ST.cD) props['Condição DISCO']={select:{name:ST.cD}};
+    if(ST.cC||ST.cD) props['Condição CAPA']={select:{name:ST.cC||ST.cD}};
+    if(ST.loc) props['Localização']={multi_select:[{name:ST.loc}]};
     if(ano) props['Ano']={select:{name:ano}};
     if(ST.coverUrl) props['Imagem da Capa']={files:[{type:'external',name:'capa.jpg',external:{url:ST.coverUrl}}]};
     if(notes) props['Notes']={rich_text:[{text:{content:notes.substring(0,1990)}}]};
+    var matriz=document.getElementById('fMat').value.trim();
+    if(matriz) props['Matriz / Sulco']={rich_text:[{text:{content:matriz.substring(0,1990)}}]};
     if(curio) props['Curiosidade']={rich_text:[{text:{content:curio.substring(0,1990)}}]};
     if(site) props['Publicar na loja']={checkbox:true};
     if(selo && selo.trim()){
@@ -1307,9 +1396,18 @@ async function salvar() {
     }
     if(todos.length) props['Estilo']={multi_select:todos.map(function(e){return{name:e};})};
     if(loteId) props['Lote']={relation:[{id:loteId}]};
+    if(ST.editId){ await salvarEdicao(props, site, btn); return; }
     var data = await nReq('POST', 'pages', { parent:{database_id:DB_E}, properties:props });
     if(data.id){
       var cod=data.properties&&data.properties['Código']&&data.properties['Código'].unique_id;
+      if(ST.rapido){
+        var nomeSalvo=art+(alb?' — '+alb:'');
+        if(site) sincronizarSite();
+        ultimoSalvo = data;
+        btn.disabled=false; proximoRapido();
+        alert_('aForm','ao','✓ Salvo no Notion: '+(cod?'VNL-'+cod.number+' · ':'')+esc(nomeSalvo)+'<button class="lnk" onclick="editarUltimo()">Editar</button>');
+        return;
+      }
       document.getElementById('sucSub').textContent=art+(alb?' — '+alb:'')+' salvo!';
       document.getElementById('sucId').textContent=cod?'VNL-'+cod.number:'Cadastrado!';
       var sucSite=document.getElementById('sucSite');
@@ -1318,14 +1416,15 @@ async function salvar() {
       document.getElementById('hdr-form').style.display='none';
       mostrar('suc'); document.getElementById('hdr-suc').style.display='flex';
     } else {
-      alert_('aForm','ae','❌ '+(data.message||data.code||'Erro ao salvar'));
+      alert_('aForm','ae','❌ Não salvou no Notion: '+esc(data.message||data.code||'erro desconhecido'), true);
     }
-  } catch(e){ alert_('aForm','ae','❌ Erro de conexão: '+e.message); }
+  } catch(e){ alert_('aForm','ae','❌ Não salvou no Notion (sem conexão): '+esc(e.message), true); }
   btn.disabled=false; rotuloSalvar();
 }
 
 function rotuloSalvar() {
-  document.getElementById('btnSave').textContent = document.getElementById('fSite').checked ? '✓ Salvar no Notion e no site' : '✓ Salvar no Notion';
+  var t = document.getElementById('fSite').checked ? '✓ Salvar no Notion e no site' : '✓ Salvar no Notion';
+  document.getElementById('btnSave').textContent = ST.editId ? '✓ Salvar alterações no Notion' : ST.rapido ? t.replace('✓ Salvar', '⚡ Salvar') + ' e próximo' : t;
 }
 
 // Pede ao Worker a sincronização da loja (/v1/sincronizar-loja, mesma chave dos apps, no máximo 1 por minuto).
@@ -1348,7 +1447,329 @@ var LOTES_FIXOS = [
   {id:'341a6605-a4aa-8080-8ad8-d923a412227c', nome:'Lote 1 - Soundtracks'}
 ];
 
+// ═══ ADICIONAR RÁPIDO ═══
+// Formulário completo direto, sem Discogs. Usa o preset de lote ativo; "Salvar e próximo" grava e
+// limpa só o que muda de um disco para outro (lote, propriedade, localização, custo, país e prensagem ficam).
+function goRapido() {
+  novoDisc();
+  ST.rapido = true;
+  modoEnxuto(true);
+  applyLote();
+  rotuloSalvar();
+  mostrar('form');
+  setTimeout(function(){ document.getElementById('fArt').focus(); }, 50);
+}
+function proximoRapido() {
+  ['fArt','fAlb','fAno','fSelo','fMat','fNt','fCur','fPr2','fEstC'].forEach(function(id){ seta(id,''); });
+  ['cD','cC','gChips','sChips'].forEach(function(id){
+    document.getElementById(id).querySelectorAll('.ch,.gc,.sc').forEach(function(el){ el.className = el.className.replace(/\s(cg|cb|cp|cy|ct|co|cr|gs|gai|ss)/g,''); });
+  });
+  ST.cD=''; ST.cC=''; ST.gen=''; ST.ests=[]; ST.coverUrl=''; ST.dupDismissed=false;
+  setSel('fRar','Comum');
+  ['dupCard','discCard','gBadge','sBadge'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; });
+  document.getElementById('fSite').checked=false; rotuloSalvar();
+  document.getElementById('mInf').textContent='';
+  window.scrollTo(0,0);
+  document.getElementById('fArt').focus();
+}
+// Enter pula para o próximo campo do formulário; no último (preço de venda), salva.
+document.getElementById('scr-form').addEventListener('keydown', function(ev){
+  var t = ev.target;
+  if (ev.key !== 'Enter' || t.tagName !== 'INPUT') return;
+  ev.preventDefault();
+  var campos = Array.prototype.filter.call(document.querySelectorAll('#scr-form input[type=text],#scr-form input[type=number],#scr-form select,#scr-form textarea'), function(c){ return c.offsetParent !== null && !c.disabled; });
+  var i = campos.indexOf(t);
+  if (i >= 0 && i < campos.length - 1) campos[i+1].focus(); else { t.blur(); salvar(); }
+});
+
+// ═══ PRESETS DE LOTE (criados aqui, guardados neste aparelho) ═══
+var PRESETS_LS = 'dylan_presets_lote';
+var COR_PROP = {Meu:'cb', Pai:'cp', Sociedade:'co', Consignado:'cy'};
+var COR_LOC = {'Caixa A':'ct','Caixa B':'ct','Caixa C':'ct', Premium:'cp', Feira:'cg', Reserva:'cy'};
+function lerPresets() {
+  try { var l = JSON.parse(localStorage.getItem(PRESETS_LS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+function gravarPresets(l) { try { localStorage.setItem(PRESETS_LS, JSON.stringify(l.slice(0, 8))); } catch (e) {} }
+function desenharPresets() {
+  var box = document.getElementById('presetsLote'); box.textContent = '';
+  lerPresets().forEach(function (p, i) {
+    var b = document.createElement('button'); b.className = 'lb'; b.id = 'l-n' + i;
+    b.onclick = function () { setLote('n' + i); };
+    b.appendChild(document.createTextNode('📦 ' + p.nome));
+    var sm = document.createElement('small'); sm.className = 'lx';
+    sm.textContent = [p.prop, p.custo ? 'R$' + Number(p.custo).toFixed(2).replace('.', ',') : '', p.loc].filter(Boolean).join(' · ');
+    b.appendChild(sm);
+    var ed = document.createElement('span'); ed.className = 'lx'; ed.textContent = '✎ editar';
+    ed.style.textDecoration = 'underline'; ed.style.display = 'inline'; ed.style.marginRight = '8px';
+    ed.onclick = function (ev) { ev.stopPropagation(); editarPreset(i); };
+    var x = document.createElement('span'); x.className = 'lx'; x.textContent = '✕ tirar';
+    x.style.textDecoration = 'underline'; x.style.display = 'inline';
+    x.onclick = function (ev) { ev.stopPropagation(); removerPreset(i); };
+    b.appendChild(ed); b.appendChild(x);
+    box.appendChild(b);
+  });
+  var n = document.createElement('button'); n.className = 'lb ln'; n.textContent = '+ Novo lote'; n.onclick = abrirNovoLote;
+  box.appendChild(n);
+  if (ST.lote) { var a = document.getElementById('l-' + ST.lote); if (a) a.classList.add('la'); }
+}
+function removerPreset(i) {
+  var l = lerPresets(); if (!l[i] || !confirm('Tirar "' + l[i].nome + '" dos presets deste aparelho? (o lote continua no Notion)')) return;
+  l.splice(i, 1); gravarPresets(l);
+  if (ST.lote && ST.lote.charAt(0) === 'n') ST.lote = null;
+  desenharPresets();
+}
+function presetAtivo() {
+  if (!ST.lote || ST.lote.charAt(0) !== 'n') return null;
+  return lerPresets()[parseInt(ST.lote.slice(1), 10)] || null;
+}
+function aplicarPreset(p) {
+  var sel = document.getElementById('fLote');
+  if (p.id) {
+    var tem = false;
+    for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === p.id) tem = true;
+    if (!tem) { var o = document.createElement('option'); o.value = p.id; o.textContent = p.nome; sel.appendChild(o); }
+    sel.value = p.id;
+  }
+  if (p.prop) selCv('p', p.prop, COR_PROP[p.prop] || 'cb');
+  if (p.loc) selCv('l', p.loc, COR_LOC[p.loc] || 'ct');
+  if (p.custo) { seta('fCu', String(p.custo)); updM(); }
+  if (p.pais) setSel('fOr', p.pais);
+  if (p.prens) setSel('fPr', p.prens);
+}
+function abrirNovoLote() {
+  ST.editPreset = null; modoTelaLote(false);
+  ['nlNome','nlValor','nlQtd','nlCusto'].forEach(function(id){ seta(id,''); });
+  var ex = document.getElementById('nlExist');
+  ex.innerHTML = '<option value="">— Escolher —</option>';
+  (lotesCache || []).forEach(function (l) { var o = document.createElement('option'); o.value = l.id; o.textContent = l.nome; ex.appendChild(o); });
+  mostrar('lote');
+  setTimeout(function(){ document.getElementById('nlNome').focus(); }, 50);
+}
+function sugerirCustoLote() {
+  var v = parseFloat(document.getElementById('nlValor').value) || 0, q = parseInt(document.getElementById('nlQtd').value, 10) || 0;
+  if (v > 0 && q > 0) document.getElementById('nlCusto').placeholder = (Math.round(v / q * 100) / 100).toFixed(2).replace('.', ',') + ' (valor ÷ discos)';
+}
+function opcoesPreset(nome, id) {
+  var v = parseFloat(document.getElementById('nlValor').value) || 0, q = parseInt(document.getElementById('nlQtd').value, 10) || 0;
+  var custo = parseFloat(document.getElementById('nlCusto').value);
+  if (!(custo >= 0) && v > 0 && q > 0) custo = Math.round(v / q * 100) / 100;
+  return { id: id, nome: nome, prop: document.getElementById('nlProp').value, loc: document.getElementById('nlLoc').value,
+    custo: custo >= 0 ? custo : null, pais: document.getElementById('nlPais').value, prens: document.getElementById('nlPrens').value };
+}
+function ativarPreset(p) {
+  var l = lerPresets().filter(function (x) { return x.id !== p.id; });
+  l.unshift(p); gravarPresets(l);
+  ST.lote = null; desenharPresets(); setLote('n0');
+  mostrar('home');
+  alert_('aH', 'ao', '✓ Lote "' + esc(p.nome) + '" ativo. Toque em ⚡ Adicionar rápido.');
+}
+async function criarLote() {
+  var nome = document.getElementById('nlNome').value.trim();
+  if (!nome) { alert_('aL', 'ae', '⚠️ Dê um nome ao lote.'); return; }
+  var btn = document.getElementById('btnLote'); btn.disabled = true; btn.textContent = '⏳ Criando...';
+  var hoje = new Date(); hoje = new Date(hoje.getTime() - hoje.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  var v = parseFloat(document.getElementById('nlValor').value), q = parseInt(document.getElementById('nlQtd').value, 10);
+  var props = {
+    'Nome do Lote': { title: [{ text: { content: nome.substring(0, 100) } }] },
+    'Tipo': { select: { name: document.getElementById('nlTipo').value } },
+    'Status': { select: { name: 'Aberto' } },
+    'Data': { date: { start: hoje } }
+  };
+  if (v >= 0) props['Valor Investido'] = { number: v };
+  if (q > 0) props['Quantidade de Itens'] = { number: q };
+  try {
+    var d = await nReq('POST', 'pages', { parent: { database_id: DB_L }, properties: props });
+    if (d && d.id) {
+      lotesCache = (lotesCache || []).concat([{ id: d.id, nome: nome }]);
+      ativarPreset(opcoesPreset(nome, d.id));
+      carregarLotes();
+    } else if (d && d.code === 'restricted_resource') {
+      alert_('aL', 'ae', '❌ O servidor ainda não aceita criar lote (falta publicar a API nova). Use "um lote que já existe" abaixo.');
+    } else if (d && d.code === 'object_not_found') {
+      alert_('aL', 'ae', '❌ A integração do Notion não tem acesso à base Lotes & Investimentos. No Notion: ••• da base → Conexões → adicionar a integração.');
+    } else {
+      alert_('aL', 'ae', '❌ ' + esc((d && (d.message || d.code)) || 'Erro ao criar lote'));
+    }
+  } catch (e) { alert_('aL', 'ae', '❌ Erro de conexão: ' + esc(e.message)); }
+  btn.disabled = false; btn.textContent = '✓ Criar lote no Notion';
+}
+function usarLoteExistente() {
+  var ex = document.getElementById('nlExist');
+  if (!ex.value) { alert_('aL', 'ae', '⚠️ Escolha o lote na lista.'); return; }
+  ativarPreset(opcoesPreset(ex.options[ex.selectedIndex].text, ex.value));
+}
+
+// Editar preset: muda só o que o preset preenche neste aparelho (o lote no Notion não é alterado).
+function modoTelaLote(editando) {
+  document.getElementById('btnLote').style.display = editando ? 'none' : '';
+  document.getElementById('btnPreset').style.display = editando ? '' : 'none';
+  document.getElementById('nlExistCard').style.display = editando ? 'none' : '';
+  ['nlTipo','nlValor','nlQtd'].forEach(function (id) { document.getElementById(id).closest('.fld').style.display = editando ? 'none' : ''; });
+  document.querySelector('#hdr-lote h1').textContent = editando ? 'Editar preset' : 'Novo lote';
+}
+function editarPreset(i) {
+  var p = lerPresets()[i]; if (!p) return;
+  ST.editPreset = i; modoTelaLote(true);
+  seta('nlNome', p.nome); seta('nlCusto', p.custo != null ? String(p.custo) : '');
+  setSel('nlProp', p.prop || 'Meu'); setSel('nlLoc', p.loc || 'Caixa A');
+  document.getElementById('nlPais').value = p.pais || ''; document.getElementById('nlPrens').value = p.prens || '';
+  mostrar('lote');
+}
+function salvarPresetEditado() {
+  var l = lerPresets(), i = ST.editPreset, p = l[i];
+  if (!p) { mostrar('home'); return; }
+  var nome = document.getElementById('nlNome').value.trim();
+  if (!nome) { alert_('aL', 'ae', '⚠️ Dê um nome ao preset.'); return; }
+  var custo = parseFloat(document.getElementById('nlCusto').value);
+  l[i] = { id: p.id, nome: nome, prop: document.getElementById('nlProp').value, loc: document.getElementById('nlLoc').value,
+    custo: custo >= 0 ? custo : null, pais: document.getElementById('nlPais').value, prens: document.getElementById('nlPrens').value };
+  gravarPresets(l); ST.editPreset = null; modoTelaLote(false);
+  desenharPresets(); mostrar('home');
+  alert_('aH', 'ao', '✓ Preset "' + esc(nome) + '" atualizado neste aparelho.');
+}
+
+// ═══ MAIS DETALHES (adicionar rápido mostra só os campos de todo disco) ═══
+function modoEnxuto(sim) {
+  document.getElementById('scr-form').classList.toggle('enxuto', sim);
+  document.getElementById('btnMais').style.display = sim ? '' : 'none';
+}
+function maisDetalhes() {
+  modoEnxuto(false);
+  document.querySelector('#scr-form [data-extra]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ═══ PROCURAR DISCO E EDITAR ═══
+var ultimoSalvo = null;
+var achados = [];
+function goProcurar() {
+  mostrar('procurar');
+  setTimeout(function(){ document.getElementById('pQ').focus(); }, 50);
+}
+function txtProp(p, nome) {
+  var v = p[nome]; if (!v) return '';
+  if (v.title) return v.title.map(function (t) { return t.plain_text || (t.text && t.text.content) || ''; }).join('');
+  if (v.rich_text) return v.rich_text.map(function (t) { return t.plain_text || (t.text && t.text.content) || ''; }).join('');
+  if (v.select) return v.select ? v.select.name : '';
+  if (v.multi_select) return v.multi_select.map(function (o) { return o.name; }).join(', ');
+  if (typeof v.number === 'number') return String(v.number);
+  return '';
+}
+async function procurarDisco() {
+  var q = document.getElementById('pQ').value.trim();
+  if (q.length < 2 && !/^\d+$/.test(q)) { alert_('aP', 'ae', '⚠️ Digite pelo menos 2 letras ou o número do VNL.'); return; }
+  var box = document.getElementById('pRes');
+  box.style.display = 'block'; box.innerHTML = '<div style="color:var(--tx2);font-size:13px">⏳ Procurando no Notion...</div>';
+  var num = (q.match(/^(?:vnl-?)?\s*(\d+)$/i) || [])[1];
+  var filtro = num
+    ? { property: 'Código', unique_id: { equals: parseInt(num, 10) } }
+    : { or: [{ property: 'Título/Artista/Banda', title: { contains: q } }, { property: 'Álbum', rich_text: { contains: q } }] };
+  try {
+    var d = await nReq('POST', 'databases/' + DB_E + '/query', { filter: filtro, page_size: 25, sorts: [{ timestamp: 'created_time', direction: 'descending' }] });
+    if (!d || !Array.isArray(d.results)) { box.innerHTML = ''; box.style.display = 'none'; alert_('aP', 'ae', '❌ ' + esc((d && (d.message || d.code)) || 'Erro na busca'), true); return; }
+    achados = d.results;
+    if (!achados.length) { box.innerHTML = '<div style="color:var(--tx2);font-size:13px">Nada encontrado para "' + esc(q) + '".</div>'; return; }
+    box.innerHTML = '';
+    achados.forEach(function (pg, i) {
+      var p = pg.properties || {}, cod = p['Código'] && p['Código'].unique_id ? 'VNL-' + p['Código'].unique_id.number : '';
+      var preco = p['Preço Final'] && typeof p['Preço Final'].number === 'number' ? 'R$ ' + p['Preço Final'].number.toFixed(2).replace('.', ',') : 'sem preço';
+      var row = document.createElement('div'); row.className = 'res-item';
+      row.innerHTML = '<div class="ri"><div class="rt">' + esc(txtProp(p, 'Título/Artista/Banda')) + (txtProp(p, 'Álbum') ? ' — ' + esc(txtProp(p, 'Álbum')) : '') + '</div>' +
+        '<div class="rs">' + esc([cod, txtProp(p, 'Ano'), txtProp(p, 'Status'), preco].filter(Boolean).join(' · ')) + '</div></div>';
+      var b = document.createElement('button'); b.className = 'btn bp'; b.textContent = 'Editar';
+      b.onclick = function () { abrirEdicao(achados[i], true); };
+      row.appendChild(b); box.appendChild(row);
+    });
+  } catch (e) { box.style.display = 'none'; alert_('aP', 'ae', '❌ Sem conexão: ' + esc(e.message), true); }
+}
+function editarUltimo() { if (ultimoSalvo) abrirEdicao(ultimoSalvo, false); }
+var ESTILOS_CHIPS = null;
+function abrirEdicao(pg, voltaParaBusca) {
+  var lote = ST.lote, eraRapido = !!ST.rapido;
+  novoDisc();
+  ST.editRapido = eraRapido;
+  ST.lote = lote; ST.editId = pg.id; ST.editVolta = voltaParaBusca; ST.dupDismissed = true;
+  var p = pg.properties || {};
+  seta('fArt', txtProp(p, 'Título/Artista/Banda')); seta('fAlb', txtProp(p, 'Álbum')); seta('fAno', txtProp(p, 'Ano'));
+  seta('fSelo', txtProp(p, 'Selo')); seta('fMat', txtProp(p, 'Matriz / Sulco')); seta('fNt', txtProp(p, 'Notes')); seta('fCur', txtProp(p, 'Curiosidade'));
+  // Lista vazia no Notion: o formulário mostra a 1ª opção, mas só grava se a pessoa mudar.
+  ST.editVazios = {};
+  ['fCat:Categoria','fTC:Tipo de Capa','fRar:Raridade','fPr:Prensagem','fOr:Origem'].forEach(function (x) { var a = x.split(':'); var v = txtProp(p, a[1]); if (v) setSel(a[0], v); else ST.editVazios[a[1]] = document.getElementById(a[0]).value; });
+  if (p['Valor de Custo'] && typeof p['Valor de Custo'].number === 'number') seta('fCu', String(p['Valor de Custo'].number));
+  if (p['Preço Final'] && typeof p['Preço Final'].number === 'number') seta('fPr2', String(p['Preço Final'].number));
+  updM();
+  var cd = txtProp(p, 'Condição DISCO'), cc = txtProp(p, 'Condição CAPA');
+  var COR_COND = { NM: 'cg', 'VG+': 'cb', VG: 'cy', G: 'co', F: 'cr', M: 'cg', 'M-': 'cg' };
+  if (cd) { selCv('d', cd, COR_COND[cd.split(' ')[0]] || 'cb'); ST.cD = cd; }
+  if (cc) { selCv('c', cc, COR_COND[cc.split(' ')[0]] || 'cb'); ST.cC = cc; }
+  var prop = txtProp(p, 'Origem / Propriedade'); if (prop) { selCv('p', prop, COR_PROP[prop] || 'cb'); ST.prop = prop; }
+  var loc = (p['Localização'] && p['Localização'].multi_select && p['Localização'].multi_select[0]) ? p['Localização'].multi_select[0].name : '';
+  if (loc) { selCv('l', loc, COR_LOC[loc] || 'ct'); ST.loc = loc; }
+  var ests = (p['Estilo'] && p['Estilo'].multi_select || []).map(function (o) { return o.name; }), outros = [];
+  ests.forEach(function (e) {
+    var chip = Array.prototype.find.call(document.querySelectorAll('#sChips .sc'), function (c) { return c.textContent === e; });
+    if (chip && ST.ests.length < 5) { ST.ests.push(e); chip.className = 'sc ss'; } else outros.push(e);
+  });
+  seta('fEstC', outros.join(', '));
+  var loteRel = p['Lote'] && p['Lote'].relation && p['Lote'].relation[0];
+  var sel = document.getElementById('fLote');
+  if (loteRel) {
+    var tem = Array.prototype.some.call(sel.options, function (o) { return o.value.replace(/-/g, '') === loteRel.id.replace(/-/g, ''); });
+    if (!tem) { var o = document.createElement('option'); o.value = loteRel.id; o.textContent = 'Lote atual do disco'; sel.appendChild(o); }
+    Array.prototype.forEach.call(sel.options, function (o) { if (o.value.replace(/-/g, '') === loteRel.id.replace(/-/g, '')) sel.value = o.value; });
+  } else sel.value = '';
+  document.getElementById('fSite').checked = !!(p['Publicar na loja'] && p['Publicar na loja'].checkbox);
+  var cod = p['Código'] && p['Código'].unique_id ? 'VNL-' + p['Código'].unique_id.number : 'disco';
+  document.querySelector('#hdr-form h1').textContent = 'Editar ' + cod;
+  rotuloSalvar();
+  mostrar('form');
+}
+function sairEdicao() {
+  ST.editId = null; ST.editVolta = false;
+  document.querySelector('#hdr-form h1').textContent = tituloForm;
+  rotuloSalvar();
+}
+var tituloForm = document.querySelector('#hdr-form h1').textContent;
+// Na edição, campos apagados também são gravados (vazios) para o Notion ficar igual ao formulário.
+async function salvarEdicao(props, site, btn) {
+  var vazioTxt = { rich_text: [] };
+  ['Álbum', 'Notes', 'Curiosidade', 'Matriz / Sulco'].forEach(function (n) { if (!props[n]) props[n] = vazioTxt; });
+  if (!props['Ano']) props['Ano'] = { select: null };
+  if (!props['Condição DISCO']) props['Condição DISCO'] = { select: null };
+  if (!props['Condição CAPA']) props['Condição CAPA'] = { select: null };
+  if (!props['Localização']) props['Localização'] = { multi_select: [] };
+  var seloTxt = document.getElementById('fSelo').value.trim();
+  props['Selo'] = { multi_select: seloTxt.split(',').map(function (x) { return x.trim().substring(0, 100); }).filter(Boolean).map(function (n) { return { name: n }; }) };
+  if (!props['Estilo']) props['Estilo'] = { multi_select: [] };
+  props['Lote'] = { relation: document.getElementById('fLote').value ? [{ id: document.getElementById('fLote').value }] : [] };
+  props['Publicar na loja'] = { checkbox: site };
+  delete props['Status']; delete props['Quantidade em Estoque']; delete props['Imagem da Capa'];
+  Object.keys(ST.editVazios || {}).forEach(function (n) { if (props[n] && props[n].select && props[n].select.name === ST.editVazios[n]) delete props[n]; });
+  try {
+    var d = await nReq('PATCH', 'pages/' + ST.editId, { properties: props });
+    if (d && d.id) {
+      var volta = ST.editVolta, art = document.getElementById('fArt').value.trim();
+      if (site) sincronizarSite();
+      sairEdicao(); btn.disabled = false;
+      if (volta) {
+        achados = achados.map(function (x) { return x.id === d.id ? d : x; });
+        mostrar('procurar'); procurarDisco();
+        alert_('aP', 'ao', '✓ Alterações de ' + esc(art) + ' salvas no Notion.');
+      } else {
+        ultimoSalvo = d;
+        if (ST.editRapido) { goRapido(); } else { novoDisc(); mostrar('form'); }
+        ST.editRapido = false;
+        alert_('aForm', 'ao', '✓ Alterações de ' + esc(art) + ' salvas no Notion. Próximo disco:');
+      }
+      return;
+    }
+    var msg = d && d.code === 'restricted_resource' ? 'o servidor ainda não aceita editar (falta publicar a API nova)' : ((d && (d.message || d.code)) || 'erro desconhecido');
+    alert_('aForm', 'ae', '❌ Não salvou no Notion: ' + esc(msg), true);
+  } catch (e) { alert_('aForm', 'ae', '❌ Não salvou no Notion (sem conexão): ' + esc(e.message), true); }
+  btn.disabled = false; rotuloSalvar();
+}
+
 // Inicializa
+desenharPresets();
 carregarLotes();
 </script>
 </body>
