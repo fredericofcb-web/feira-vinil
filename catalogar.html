@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>Catalogar — Feira de Vinil</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
   --bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#242424;--bor:#2e2e2e;
@@ -409,9 +410,21 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     <div id="capaBox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
       <img id="capaPrev" alt="" style="display:none;width:64px;height:64px;object-fit:cover;border-radius:6px;background:var(--bg3)"/>
       <button type="button" class="btn bo" id="btnCapa" style="flex:1;padding:10px" onclick="document.getElementById('capaIn').click()">📷 Foto da capa</button>
+      <button type="button" class="btn bo" id="btnCel" style="width:auto;padding:10px 12px" onclick="abrirQRCapa()">📱 Celular</button>
       <input type="file" id="capaIn" accept="image/*" capture="environment" style="display:none" onchange="fotoCapa(this)"/>
     </div>
     <div id="capaMsg" style="font-size:11px;color:var(--tx2);margin:-4px 0 8px;display:none"></div>
+    <div id="qrBox" style="display:none;position:fixed;inset:0;z-index:998;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
+      <div class="card" style="width:100%;max-width:340px;text-align:center;padding:20px 16px">
+        <div style="font-weight:700;margin-bottom:6px">📱 Foto da capa pelo celular</div>
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:12px">Aponte a câmera do celular para o QR e abra o link. Deixe a página aberta no celular: cada foto tirada lá aparece no disco que estiver aberto aqui. Vale por 1 hora.</div>
+        <div id="qrCapa" style="background:#fff;padding:10px;border-radius:8px;display:inline-block"></div>
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button type="button" class="btn bg" onclick="fecharQRCapa()">Pronto</button>
+          <button type="button" class="btn bo" onclick="desconectarCel()">Desconectar</button>
+        </div>
+      </div>
+    </div>
     <div class="fld"><label>Artista / Banda<span class="obg">*</span></label><input id="fArt" type="text" placeholder="Artista" onblur="checarDuplicata()"/></div>
     <div class="fld"><label>Álbum / Título<span class="obg">*</span></label><input id="fAlb" type="text" placeholder="Álbum" onblur="checarDuplicata()"/></div>
     <div class="g3">
@@ -1671,6 +1684,9 @@ async function reduzirCapa(arquivo) {
 }
 async function fotoCapa(inp) {
   var f = inp.files && inp.files[0]; if (!f) return;
+  await enviarCapa(f);
+}
+async function enviarCapa(f) {
   ST.capaUpload = null; ST.capaEnviando = true;
   document.getElementById('btnCapa').textContent = '📷 Trocar foto';
   msgCapa('⏳ Enviando a foto...');
@@ -1688,6 +1704,89 @@ async function fotoCapa(inp) {
     msgCapa('❌ A foto não subiu (' + e.message + '). Tente de novo ou salve sem foto.', 'var(--re)');
   }
   ST.capaEnviando = false;
+}
+
+// ═══ FOTO DA CAPA PELO CELULAR (QR) ═══
+// Mesma rota do gerador de posts: o computador assina um link de 1 hora para a sessão; o celular envia a foto
+// para /v1/foto/<sessão> e o computador busca, apaga do KV e sobe como capa do disco aberto.
+var CEL = { sess: null, exp: 0, timer: null, buscando: false };
+async function assinarFotoCel(code, exp) {
+  var enc = new TextEncoder();
+  var k = await crypto.subtle.importKey('raw', enc.encode(chaveApps()), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  var mac = new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode('foto:' + code + ':' + exp)));
+  return btoa(String.fromCharCode.apply(null, mac)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function abrirQRCapa() {
+  if (location.protocol === 'file:') { msgCapa('O QR só funciona na página publicada (GitHub Pages).', 'var(--re)'); return; }
+  if (!chaveApps()) pedirChaveApps();
+  if (!chaveApps()) return;
+  var agora = Math.floor(Date.now() / 1000);
+  if (!CEL.sess || CEL.exp - agora < 120) {
+    var c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = crypto.getRandomValues(new Uint32Array(12)), s = '';
+    for (var i = 0; i < 12; i++) s += c[r[i] % c.length];
+    CEL.sess = s; CEL.exp = agora + 3600;
+    var link = location.origin + location.pathname + '?foto=' + s + '&exp=' + CEL.exp + '&sig=' + await assinarFotoCel(s, CEL.exp);
+    var q = document.getElementById('qrCapa'); q.innerHTML = '';
+    if (window.QRCode) new QRCode(q, { text: link, width: 220, height: 220 });
+    else q.innerHTML = '<a href="' + link + '" style="color:#000;font-size:11px;word-break:break-all">' + link + '</a>';
+  }
+  document.getElementById('qrBox').style.display = 'flex';
+  clearInterval(CEL.timer); CEL.timer = setInterval(buscarFotoCel, 2500);
+  document.getElementById('btnCel').textContent = '📱 Conectado';
+}
+function fecharQRCapa() { document.getElementById('qrBox').style.display = 'none'; }
+function desconectarCel() {
+  clearInterval(CEL.timer); CEL.sess = null; CEL.exp = 0;
+  document.getElementById('btnCel').textContent = '📱 Celular';
+  fecharQRCapa();
+}
+async function buscarFotoCel() {
+  if (!CEL.sess || CEL.buscando) return;
+  if (Math.floor(Date.now() / 1000) > CEL.exp) { desconectarCel(); msgCapa('A conexão com o celular expirou (1 hora). Toque em 📱 Celular para gerar outro QR.'); return; }
+  // Só pega a foto quando há um disco novo aberto (fora da edição e sem envio em andamento).
+  if (document.getElementById('capaBox').offsetParent === null || ST.capaEnviando) return;
+  CEL.buscando = true;
+  try {
+    var sess = CEL.sess;
+    var r = await fetch(PRXY + 'foto/' + sess, { headers: comChave() });
+    if (r.status === 401) { chaveRecusada(); return; }
+    if (!r.ok) return;
+    var blob = await r.blob();
+    fetch(PRXY + 'foto/' + sess, { method: 'DELETE', headers: comChave() });
+    fecharQRCapa();
+    document.getElementById('btnCapa').scrollIntoView({ block: 'center' });
+    await enviarCapa(blob);
+  } catch (e) { /* tenta de novo no próximo ciclo */ }
+  finally { CEL.buscando = false; }
+}
+// Página aberta pelo QR no celular: só a câmera e o envio.
+function modoCelularFoto() {
+  var p = new URLSearchParams(location.search), sess = (p.get('foto') || '').toUpperCase();
+  if (!/^[A-Z0-9]{4,32}$/.test(sess)) return false;
+  var q = '?exp=' + encodeURIComponent(p.get('exp') || '') + '&sig=' + encodeURIComponent(p.get('sig') || '');
+  document.body.innerHTML = '<div style="max-width:420px;margin:0 auto;padding:28px 16px;text-align:center">'
+    + '<div style="font-size:20px;font-weight:800;margin-bottom:6px">🐾 Dylan Discos</div>'
+    + '<div style="font-size:13px;color:var(--tx2);margin-bottom:22px">Foto da capa para o computador</div>'
+    + '<label for="celCam" class="btn bg" style="display:block;padding:26px 12px;font-size:19px">📷 Tirar foto da capa</label>'
+    + '<input type="file" id="celCam" accept="image/*" capture="environment" style="display:none"/>'
+    + '<div id="celMsg" style="margin-top:18px;font-size:15px"></div>'
+    + '<img id="celImg" alt="" style="display:none;margin:14px auto 0;max-width:70%;border-radius:8px"/></div>';
+  var msg = document.getElementById('celMsg');
+  document.getElementById('celCam').addEventListener('change', async function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    msg.style.color = 'var(--tx2)'; msg.textContent = '⏳ Enviando...';
+    try {
+      var url = await reduzirCapa(f);
+      var blob = await (await fetch(url)).blob();
+      var r = await fetch(PRXY + 'foto/' + sess + q, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+      if (r.status === 401) throw new Error('QR expirado. Gere outro no computador.');
+      if (!r.ok) throw new Error('erro ' + r.status);
+      msg.style.color = 'var(--gr)'; msg.textContent = '✅ Enviada! Confira no computador. Para o próximo disco, tire outra foto aqui.';
+      var im = document.getElementById('celImg'); im.src = url; im.style.display = 'block';
+    } catch (err) { msg.style.color = 'var(--re)'; msg.textContent = '❌ Não enviou: ' + err.message; }
+    e.target.value = '';
+  });
+  return true;
 }
 
 // ═══ MAIS DETALHES (adicionar rápido mostra só os campos de todo disco) ═══
@@ -1832,9 +1931,8 @@ async function salvarEdicao(props, site, btn) {
   btn.disabled = false; rotuloSalvar();
 }
 
-// Inicializa
-desenharPresets();
-carregarLotes();
+// Inicializa (no celular aberto pelo QR, só a tela de foto)
+if (!modoCelularFoto()) { desenharPresets(); carregarLotes(); }
 </script>
 </body>
 </html>
