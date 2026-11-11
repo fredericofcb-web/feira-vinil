@@ -406,6 +406,12 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <!-- IDENTIFICAÇÃO -->
   <div class="card">
     <div class="cl">Identificação</div>
+    <div id="capaBox" style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <img id="capaPrev" alt="" style="display:none;width:64px;height:64px;object-fit:cover;border-radius:6px;background:var(--bg3)"/>
+      <button type="button" class="btn bo" id="btnCapa" style="flex:1;padding:10px" onclick="document.getElementById('capaIn').click()">📷 Foto da capa</button>
+      <input type="file" id="capaIn" accept="image/*" capture="environment" style="display:none" onchange="fotoCapa(this)"/>
+    </div>
+    <div id="capaMsg" style="font-size:11px;color:var(--tx2);margin:-4px 0 8px;display:none"></div>
     <div class="fld"><label>Artista / Banda<span class="obg">*</span></label><input id="fArt" type="text" placeholder="Artista" onblur="checarDuplicata()"/></div>
     <div class="fld"><label>Álbum / Título<span class="obg">*</span></label><input id="fAlb" type="text" placeholder="Álbum" onblur="checarDuplicata()"/></div>
     <div class="g3">
@@ -741,6 +747,7 @@ function novoDisc() {
   document.getElementById('fSite').checked=false; rotuloSalvar();
   document.getElementById('mInf').textContent='';
   modoEnxuto(false);
+  limparCapa();
   mostrar('home');
 }
 
@@ -1346,6 +1353,7 @@ async function salvar() {
   if(!ST.prop) faltam.push('de quem é (propriedade)');
   if(!((parseFloat(document.getElementById('fPr2').value)||0) > 0)) faltam.push('preço de venda');
   if(faltam.length){ alert_('aForm','ae','⚠️ Falta preencher: '+faltam.join(', ')+'.'); return; }
+  if(ST.capaEnviando){ alert_('aForm','ae','⏳ Espere a foto da capa terminar de subir.'); return; }
 
   // Última checagem de segurança: se ainda há um alerta de duplicata visível e não dispensado, avisa antes de salvar
   if (document.getElementById('dupCard').style.display === 'block' && !ST.dupDismissed) {
@@ -1389,7 +1397,8 @@ async function salvar() {
     if(ST.cC||ST.cD) props['Condição CAPA']={select:{name:ST.cC||ST.cD}};
     if(ST.loc) props['Localização']={multi_select:[{name:ST.loc}]};
     if(ano) props['Ano']={select:{name:ano}};
-    if(ST.coverUrl) props['Imagem da Capa']={files:[{type:'external',name:'capa.jpg',external:{url:ST.coverUrl}}]};
+    if(ST.capaUpload) props['Imagem da Capa']={files:[{type:'file_upload',name:'capa.jpg',file_upload:{id:ST.capaUpload}}]};
+    else if(ST.coverUrl) props['Imagem da Capa']={files:[{type:'external',name:'capa.jpg',external:{url:ST.coverUrl}}]};
     if(notes) props['Notes']={rich_text:[{text:{content:notes.substring(0,1990)}}]};
     var matriz=document.getElementById('fMat').value.trim();
     if(matriz) props['Matriz / Sulco']={rich_text:[{text:{content:matriz.substring(0,1990)}}]};
@@ -1470,6 +1479,7 @@ function proximoRapido() {
     document.getElementById(id).querySelectorAll('.ch,.gc,.sc').forEach(function(el){ el.className = el.className.replace(/\s(cg|cb|cp|cy|ct|co|cr|gs|gai|ss)/g,''); });
   });
   ST.cD=''; ST.cC=''; ST.gen=''; ST.ests=[]; ST.coverUrl=''; ST.dupDismissed=false;
+  limparCapa();
   setSel('fRar','Comum');
   ['dupCard','discCard','gBadge','sBadge'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; });
   document.getElementById('fSite').checked=false; rotuloSalvar();
@@ -1641,6 +1651,45 @@ function propDoLote() {
   if (COR_PROP[nome]) selCv('p', nome, COR_PROP[nome]);
 }
 
+// ═══ FOTO DA CAPA ═══
+// Reduz no celular (lado maior 1200 px) e já envia ao Notion pelo Worker (/v1/upload-image), que devolve o
+// id do arquivo; o disco é salvo com esse arquivo em "Imagem da Capa", como as capas que o PDV já mostra.
+function limparCapa() {
+  ST.capaUpload = null; ST.capaEnviando = false;
+  var im = document.getElementById('capaPrev'); im.style.display = 'none'; im.removeAttribute('src');
+  document.getElementById('capaMsg').style.display = 'none';
+  document.getElementById('btnCapa').textContent = '📷 Foto da capa';
+  document.getElementById('capaIn').value = '';
+}
+function msgCapa(t, cor) { var m = document.getElementById('capaMsg'); m.textContent = t; m.style.color = cor || 'var(--tx2)'; m.style.display = 'block'; }
+async function reduzirCapa(arquivo) {
+  var bmp = await createImageBitmap(arquivo, { imageOrientation: 'from-image' });
+  var k = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
+  var c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.85);
+}
+async function fotoCapa(inp) {
+  var f = inp.files && inp.files[0]; if (!f) return;
+  ST.capaUpload = null; ST.capaEnviando = true;
+  document.getElementById('btnCapa').textContent = '📷 Trocar foto';
+  msgCapa('⏳ Enviando a foto...');
+  try {
+    var url = await reduzirCapa(f);
+    var im = document.getElementById('capaPrev'); im.src = url; im.style.display = 'block';
+    var r = await fetch(PRXY + 'upload-image', { method: 'POST', headers: comChave({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ base64: url.split(',')[1], filename: 'capa-' + Date.now() + '.jpg', mime: 'image/jpeg' }) });
+    if (r.status === 401) chaveRecusada();
+    var d = await r.json().catch(function () { return {}; });
+    if (!d.file_upload_id) throw new Error(d.error || ('erro ' + r.status));
+    ST.capaUpload = d.file_upload_id;
+    msgCapa('✓ Foto pronta. Vai junto ao salvar.', 'var(--gr)');
+  } catch (e) {
+    msgCapa('❌ A foto não subiu (' + e.message + '). Tente de novo ou salve sem foto.', 'var(--re)');
+  }
+  ST.capaEnviando = false;
+}
+
 // ═══ MAIS DETALHES (adicionar rápido mostra só os campos de todo disco) ═══
 function modoEnxuto(sim) {
   document.getElementById('scr-form').classList.toggle('enxuto', sim);
@@ -1733,11 +1782,13 @@ function abrirEdicao(pg, voltaParaBusca) {
   document.getElementById('fSite').checked = !!(p['Publicar na loja'] && p['Publicar na loja'].checkbox);
   var cod = p['Código'] && p['Código'].unique_id ? 'VNL-' + p['Código'].unique_id.number : 'disco';
   document.querySelector('#hdr-form h1').textContent = 'Editar ' + cod;
+  document.getElementById('capaBox').style.display = 'none';
   rotuloSalvar();
   mostrar('form');
 }
 function sairEdicao() {
   ST.editId = null; ST.editVolta = false;
+  document.getElementById('capaBox').style.display = 'flex';
   document.querySelector('#hdr-form h1').textContent = tituloForm;
   rotuloSalvar();
 }
