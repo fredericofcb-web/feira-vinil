@@ -1418,8 +1418,8 @@ async function salvar() {
         var nomeSalvo=art+(alb?' — '+alb:'');
         if(site) sincronizarSite();
         ultimoSalvo = data;
-        btn.disabled=false; proximoRapido();
-        alert_('aForm','ao','✓ Salvo no Notion: '+(cod?'VNL-'+cod.number+' · ':'')+esc(nomeSalvo)+'<button class="lnk" onclick="editarUltimo()">Editar</button>');
+        btn.disabled=false;
+        mostrarVnl(cod?'VNL-'+cod.number:'Salvo', nomeSalvo);
         return;
       }
       document.getElementById('sucSub').textContent=art+(alb?' — '+alb:'')+' salvo!';
@@ -1744,6 +1744,19 @@ async function procurarDisco() {
   } catch (e) { box.style.display = 'none'; alert_('aP', 'ae', '❌ Sem conexão: ' + esc(e.message), true); }
 }
 function editarUltimo() { if (ultimoSalvo) abrirEdicao(ultimoSalvo, false); }
+// Depois de salvar no adicionar rápido: mostra o VNL grande e só limpa o formulário quando Fred confirmar que anotou.
+function mostrarVnl(codigo, nome) {
+  document.getElementById('vnlCod').textContent = codigo;
+  document.getElementById('vnlNome').textContent = nome;
+  rotuloSalvar();
+  document.getElementById('vnlBox').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('vnlOk').focus(); }, 300);
+}
+function fecharVnl(editar) {
+  document.getElementById('vnlBox').style.display = 'none';
+  proximoRapido();
+  if (editar) editarUltimo();
+}
 var ESTILOS_CHIPS = null;
 function abrirEdicao(pg, voltaParaBusca) {
   var lote = ST.lote, eraRapido = !!ST.rapido;
@@ -1836,5 +1849,14 @@ async function salvarEdicao(props, site, btn) {
 desenharPresets();
 carregarLotes();
 </script>
+<div id="vnlBox" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="width:100%;max-width:360px;text-align:center;padding:22px 16px">
+    <div style="font-size:12px;color:var(--tx2)">✓ Salvo no Notion. Anote o código:</div>
+    <div id="vnlCod" style="font-size:44px;font-weight:800;letter-spacing:1px;margin:10px 0 4px"></div>
+    <div id="vnlNome" style="font-size:13px;color:var(--tx2);margin-bottom:18px"></div>
+    <button class="btn bg" id="vnlOk" onclick="fecharVnl(false)">✓ Anotei, próximo disco</button>
+    <button class="lnk" style="margin-top:12px" onclick="fecharVnl(true)">Editar este disco</button>
+  </div>
+</div>
 </body>
 </html>
