@@ -76,6 +76,10 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 .mc.mg{border-color:var(--grbd);background:var(--grb)}
 .mc.mt{border-color:var(--tebd);background:var(--teb)}
 .mc.mb{border-color:var(--blbd);background:var(--blb)}
+.mc.mr{border-color:var(--orbd);background:var(--orb);grid-column:1/-1;display:flex;align-items:center;gap:12px;text-align:left;padding:14px 16px}
+.mc.mr .mi{margin:0}
+.lb.ln{border-style:dashed;color:var(--ye)}
+.lb .lx{display:block;font-size:10px;color:var(--tx3);font-weight:400}
 .mi{font-size:26px;margin-bottom:6px}
 .mt2{font-size:13px;font-weight:700;color:var(--tx);margin-bottom:2px}
 .ms{font-size:11px;color:var(--tx2)}
@@ -150,6 +154,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <div class="mc mg" onclick="goFoto()"><div class="mi">📸</div><div class="mt2">Foto</div><div class="ms">Capa ou label</div></div>
       <div class="mc mt" onclick="goVoz()"><div class="mi">🎙</div><div class="mt2">Voz</div><div class="ms">Fala, eu preencho</div></div>
       <div class="mc mb" onclick="goBusca()"><div class="mi">⌨️</div><div class="mt2">Digitar</div><div class="ms">Busca inteligente</div></div>
+      <div class="mc mr" onclick="goRapido()"><div class="mi">⚡</div><div><div class="mt2">Adicionar rápido</div><div class="ms">À mão, sem Discogs · usa o lote ativo</div></div></div>
     </div>
   </div>
   <div class="card">
@@ -159,6 +164,43 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <button class="lb" id="l-me" onclick="setLote('me')">👤 Meu<br><small>Custo livre</small></button>
       <button class="lb" id="l-pa" onclick="setLote('pa')">👨 Pai<br><small>Comissão</small></button>
     </div>
+    <div class="lgrid" id="presetsLote" style="margin-top:7px"></div>
+  </div>
+</div>
+
+<!-- ══ NOVO LOTE ══ -->
+<div id="hdr-lote" class="hdr" style="display:none">
+  <span style="font-size:20px">📦</span><div><h1>Novo lote</h1><div class="hdr-s">Cria no Notion e vira o preset ativo</div></div>
+  <button class="back" onclick="voltar('lote')">← Voltar</button>
+</div>
+<div id="scr-lote" class="scr">
+  <div id="aL" class="ale ae"></div>
+  <div class="card">
+    <div class="cl">Lote</div>
+    <div class="fld"><label>Nome do lote *</label><input id="nlNome" type="text" maxlength="100" placeholder="Ex.: Lote 2 - Garimpo Centro"/></div>
+    <div class="g2">
+      <div class="fld"><label>Tipo</label><select id="nlTipo"><option>Compra</option><option>Lote Fechado</option><option>Consignado</option><option>Troca</option><option>Herança/Doação</option></select></div>
+      <div class="fld"><label>Valor investido (R$)</label><input id="nlValor" type="number" inputmode="decimal" step="0.01" min="0" placeholder="300,00" oninput="sugerirCustoLote()"/></div>
+    </div>
+    <div class="fld"><label>Quantidade de discos</label><input id="nlQtd" type="number" inputmode="numeric" step="1" min="0" placeholder="50" oninput="sugerirCustoLote()"/></div>
+  </div>
+  <div class="card">
+    <div class="cl">Preenche em todos os discos do lote</div>
+    <div class="g2">
+      <div class="fld"><label>Propriedade</label><select id="nlProp"><option>Meu</option><option>Pai</option><option>Sociedade</option><option>Consignado</option></select></div>
+      <div class="fld"><label>Custo por disco (R$)</label><input id="nlCusto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="6,00"/></div>
+    </div>
+    <div class="g2">
+      <div class="fld"><label>Localização</label><select id="nlLoc"><option>Caixa A</option><option>Caixa B</option><option>Caixa C</option><option>Premium</option><option>Feira</option><option>Reserva</option></select></div>
+      <div class="fld"><label>País</label><select id="nlPais"><option value="">(cada disco)</option><option>Brasil</option><option>EUA</option><option>Reino Unido</option><option>Europa</option><option>Japão</option><option>Argentina</option><option>Outro</option></select></div>
+    </div>
+    <div class="fld"><label>Prensagem</label><select id="nlPrens"><option value="">(cada disco)</option><option>Nacional</option><option>Importado</option><option>Original</option><option>Relançamento</option><option>Bootleg</option><option>Promo</option></select></div>
+  </div>
+  <button class="btn bg" id="btnLote" onclick="criarLote()">✓ Criar lote no Notion</button>
+  <div class="card" style="margin-top:12px">
+    <div class="cl">Ou usar um lote que já existe</div>
+    <select class="lsel" id="nlExist"><option value="">— Escolher —</option></select>
+    <button class="btn bo" style="margin-top:8px" onclick="usarLoteExistente()">Usar este lote com as opções acima</button>
   </div>
 </div>
 
@@ -344,6 +386,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       </div>
       <div class="fld"><label>Selo</label><input id="fSelo" type="text" placeholder="Atlantic"/></div>
     </div>
+    <div class="fld"><label>Matriz / Sulco <span style="color:var(--tx3)">(o que está gravado perto do selo)</span></label><input id="fMat" type="text" maxlength="300" autocapitalize="characters" placeholder="A: 104.6045 A-1 / B: 104.6045 B-1"/></div>
   </div>
 
   <!-- GÊNERO -->
@@ -636,6 +679,7 @@ function mostrar(nome) {
 }
 function voltar(de) {
   if (de === 'scan') { pararScanner(); }
+  if (de === 'form' && ST.rapido) { ST.rapido = false; rotuloSalvar(); }
   mostrar('home');
 }
 function novoDisc() {
@@ -652,7 +696,7 @@ function novoDisc() {
   document.getElementById('dupCard').style.display='none';
   document.getElementById('gBadge').style.display='none';
   document.getElementById('sBadge').style.display='none';
-  ['fArt','fAlb','fAno','fSelo','fNt','fCur','fCu','fPr2','fEstC','fArt2','fAlb2','fCat2','fAno2','fSelo2','bCatno','bQ','bArt','bAlb','bAno','bSelo','bCusto'].forEach(function(id){
+  ['fArt','fAlb','fAno','fSelo','fMat','fNt','fCur','fCu','fPr2','fEstC','fArt2','fAlb2','fCat2','fAno2','fSelo2','bCatno','bQ','bArt','bAlb','bAno','bSelo','bCusto'].forEach(function(id){
     var e = document.getElementById(id); if(e) e.value='';
   });
   document.getElementById('fLote').value='';
@@ -878,6 +922,7 @@ function preencherLotesFixos(sel, info) {
 }
 function applyLote() {
   if(!ST.lote) return;
+  var pn = presetAtivo(); if (pn) { aplicarPreset(pn); return; }
   if(ST.lote==='st'){
     seta('fCu','0.60'); selCv('p','Sociedade','co'); selCv('l','Feira','cg');
     var sel=document.getElementById('fLote');
@@ -1299,6 +1344,8 @@ async function salvar() {
     if(ano) props['Ano']={select:{name:ano}};
     if(ST.coverUrl) props['Imagem da Capa']={files:[{type:'external',name:'capa.jpg',external:{url:ST.coverUrl}}]};
     if(notes) props['Notes']={rich_text:[{text:{content:notes.substring(0,1990)}}]};
+    var matriz=document.getElementById('fMat').value.trim();
+    if(matriz) props['Matriz / Sulco']={rich_text:[{text:{content:matriz.substring(0,1990)}}]};
     if(curio) props['Curiosidade']={rich_text:[{text:{content:curio.substring(0,1990)}}]};
     if(site) props['Publicar na loja']={checkbox:true};
     if(selo && selo.trim()){
@@ -1310,6 +1357,13 @@ async function salvar() {
     var data = await nReq('POST', 'pages', { parent:{database_id:DB_E}, properties:props });
     if(data.id){
       var cod=data.properties&&data.properties['Código']&&data.properties['Código'].unique_id;
+      if(ST.rapido){
+        var nomeSalvo=art+(alb?' — '+alb:'');
+        if(site) sincronizarSite();
+        btn.disabled=false; proximoRapido();
+        alert_('aForm','ao','✓ '+(cod?'VNL-'+cod.number+' · ':'')+esc(nomeSalvo)+' salvo. Próximo disco:');
+        return;
+      }
       document.getElementById('sucSub').textContent=art+(alb?' — '+alb:'')+' salvo!';
       document.getElementById('sucId').textContent=cod?'VNL-'+cod.number:'Cadastrado!';
       var sucSite=document.getElementById('sucSite');
@@ -1325,7 +1379,8 @@ async function salvar() {
 }
 
 function rotuloSalvar() {
-  document.getElementById('btnSave').textContent = document.getElementById('fSite').checked ? '✓ Salvar no Notion e no site' : '✓ Salvar no Notion';
+  var t = document.getElementById('fSite').checked ? '✓ Salvar no Notion e no site' : '✓ Salvar no Notion';
+  document.getElementById('btnSave').textContent = ST.rapido ? t.replace('✓ Salvar', '⚡ Salvar') + ' e próximo' : t;
 }
 
 // Pede ao Worker a sincronização da loja (/v1/sincronizar-loja, mesma chave dos apps, no máximo 1 por minuto).
@@ -1348,7 +1403,155 @@ var LOTES_FIXOS = [
   {id:'341a6605-a4aa-8080-8ad8-d923a412227c', nome:'Lote 1 - Soundtracks'}
 ];
 
+// ═══ ADICIONAR RÁPIDO ═══
+// Formulário completo direto, sem Discogs. Usa o preset de lote ativo; "Salvar e próximo" grava e
+// limpa só o que muda de um disco para outro (lote, propriedade, localização, custo, país e prensagem ficam).
+function goRapido() {
+  novoDisc();
+  ST.rapido = true;
+  applyLote();
+  rotuloSalvar();
+  mostrar('form');
+  setTimeout(function(){ document.getElementById('fArt').focus(); }, 50);
+}
+function proximoRapido() {
+  ['fArt','fAlb','fAno','fSelo','fMat','fNt','fCur','fPr2','fEstC'].forEach(function(id){ seta(id,''); });
+  ['cD','cC','gChips','sChips'].forEach(function(id){
+    document.getElementById(id).querySelectorAll('.ch,.gc,.sc').forEach(function(el){ el.className = el.className.replace(/\s(cg|cb|cp|cy|ct|co|cr|gs|gai|ss)/g,''); });
+  });
+  ST.cD=''; ST.cC=''; ST.gen=''; ST.ests=[]; ST.coverUrl=''; ST.dupDismissed=false;
+  setSel('fRar','Comum');
+  ['dupCard','discCard','gBadge','sBadge'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; });
+  document.getElementById('fSite').checked=false; rotuloSalvar();
+  document.getElementById('mInf').textContent='';
+  window.scrollTo(0,0);
+  document.getElementById('fArt').focus();
+}
+// Enter pula para o próximo campo do formulário (no último, só sai do campo).
+document.getElementById('scr-form').addEventListener('keydown', function(ev){
+  var t = ev.target;
+  if (ev.key !== 'Enter' || t.tagName !== 'INPUT') return;
+  ev.preventDefault();
+  var campos = Array.prototype.filter.call(document.querySelectorAll('#scr-form input[type=text],#scr-form input[type=number],#scr-form select,#scr-form textarea'), function(c){ return c.offsetParent !== null && !c.disabled; });
+  var i = campos.indexOf(t);
+  if (i >= 0 && i < campos.length - 1) campos[i+1].focus(); else t.blur();
+});
+
+// ═══ PRESETS DE LOTE (criados aqui, guardados neste aparelho) ═══
+var PRESETS_LS = 'dylan_presets_lote';
+var COR_PROP = {Meu:'cb', Pai:'cp', Sociedade:'co', Consignado:'cy'};
+var COR_LOC = {'Caixa A':'ct','Caixa B':'ct','Caixa C':'ct', Premium:'cp', Feira:'cg', Reserva:'cy'};
+function lerPresets() {
+  try { var l = JSON.parse(localStorage.getItem(PRESETS_LS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+function gravarPresets(l) { try { localStorage.setItem(PRESETS_LS, JSON.stringify(l.slice(0, 8))); } catch (e) {} }
+function desenharPresets() {
+  var box = document.getElementById('presetsLote'); box.textContent = '';
+  lerPresets().forEach(function (p, i) {
+    var b = document.createElement('button'); b.className = 'lb'; b.id = 'l-n' + i;
+    b.onclick = function () { setLote('n' + i); };
+    b.appendChild(document.createTextNode('📦 ' + p.nome));
+    var sm = document.createElement('small'); sm.className = 'lx';
+    sm.textContent = [p.prop, p.custo ? 'R$' + Number(p.custo).toFixed(2).replace('.', ',') : '', p.loc].filter(Boolean).join(' · ');
+    b.appendChild(sm);
+    var x = document.createElement('span'); x.className = 'lx'; x.textContent = '✕ tirar';
+    x.style.textDecoration = 'underline';
+    x.onclick = function (ev) { ev.stopPropagation(); removerPreset(i); };
+    b.appendChild(x);
+    box.appendChild(b);
+  });
+  var n = document.createElement('button'); n.className = 'lb ln'; n.textContent = '+ Novo lote'; n.onclick = abrirNovoLote;
+  box.appendChild(n);
+  if (ST.lote) { var a = document.getElementById('l-' + ST.lote); if (a) a.classList.add('la'); }
+}
+function removerPreset(i) {
+  var l = lerPresets(); if (!l[i] || !confirm('Tirar "' + l[i].nome + '" dos presets deste aparelho? (o lote continua no Notion)')) return;
+  l.splice(i, 1); gravarPresets(l);
+  if (ST.lote && ST.lote.charAt(0) === 'n') ST.lote = null;
+  desenharPresets();
+}
+function presetAtivo() {
+  if (!ST.lote || ST.lote.charAt(0) !== 'n') return null;
+  return lerPresets()[parseInt(ST.lote.slice(1), 10)] || null;
+}
+function aplicarPreset(p) {
+  var sel = document.getElementById('fLote');
+  if (p.id) {
+    var tem = false;
+    for (var i = 0; i < sel.options.length; i++) if (sel.options[i].value === p.id) tem = true;
+    if (!tem) { var o = document.createElement('option'); o.value = p.id; o.textContent = p.nome; sel.appendChild(o); }
+    sel.value = p.id;
+  }
+  if (p.prop) selCv('p', p.prop, COR_PROP[p.prop] || 'cb');
+  if (p.loc) selCv('l', p.loc, COR_LOC[p.loc] || 'ct');
+  if (p.custo) { seta('fCu', String(p.custo)); updM(); }
+  if (p.pais) setSel('fOr', p.pais);
+  if (p.prens) setSel('fPr', p.prens);
+}
+function abrirNovoLote() {
+  ['nlNome','nlValor','nlQtd','nlCusto'].forEach(function(id){ seta(id,''); });
+  var ex = document.getElementById('nlExist');
+  ex.innerHTML = '<option value="">— Escolher —</option>';
+  (lotesCache || []).forEach(function (l) { var o = document.createElement('option'); o.value = l.id; o.textContent = l.nome; ex.appendChild(o); });
+  mostrar('lote');
+  setTimeout(function(){ document.getElementById('nlNome').focus(); }, 50);
+}
+function sugerirCustoLote() {
+  var v = parseFloat(document.getElementById('nlValor').value) || 0, q = parseInt(document.getElementById('nlQtd').value, 10) || 0;
+  if (v > 0 && q > 0) document.getElementById('nlCusto').placeholder = (Math.round(v / q * 100) / 100).toFixed(2).replace('.', ',') + ' (valor ÷ discos)';
+}
+function opcoesPreset(nome, id) {
+  var v = parseFloat(document.getElementById('nlValor').value) || 0, q = parseInt(document.getElementById('nlQtd').value, 10) || 0;
+  var custo = parseFloat(document.getElementById('nlCusto').value);
+  if (!(custo >= 0) && v > 0 && q > 0) custo = Math.round(v / q * 100) / 100;
+  return { id: id, nome: nome, prop: document.getElementById('nlProp').value, loc: document.getElementById('nlLoc').value,
+    custo: custo >= 0 ? custo : null, pais: document.getElementById('nlPais').value, prens: document.getElementById('nlPrens').value };
+}
+function ativarPreset(p) {
+  var l = lerPresets().filter(function (x) { return x.id !== p.id; });
+  l.unshift(p); gravarPresets(l);
+  ST.lote = null; desenharPresets(); setLote('n0');
+  mostrar('home');
+  alert_('aH', 'ao', '✓ Lote "' + esc(p.nome) + '" ativo. Toque em ⚡ Adicionar rápido.');
+}
+async function criarLote() {
+  var nome = document.getElementById('nlNome').value.trim();
+  if (!nome) { alert_('aL', 'ae', '⚠️ Dê um nome ao lote.'); return; }
+  var btn = document.getElementById('btnLote'); btn.disabled = true; btn.textContent = '⏳ Criando...';
+  var hoje = new Date(); hoje = new Date(hoje.getTime() - hoje.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  var v = parseFloat(document.getElementById('nlValor').value), q = parseInt(document.getElementById('nlQtd').value, 10);
+  var props = {
+    'Nome do Lote': { title: [{ text: { content: nome.substring(0, 100) } }] },
+    'Tipo': { select: { name: document.getElementById('nlTipo').value } },
+    'Status': { select: { name: 'Aberto' } },
+    'Data': { date: { start: hoje } }
+  };
+  if (v >= 0) props['Valor Investido'] = { number: v };
+  if (q > 0) props['Quantidade de Itens'] = { number: q };
+  try {
+    var d = await nReq('POST', 'pages', { parent: { database_id: DB_L }, properties: props });
+    if (d && d.id) {
+      lotesCache = (lotesCache || []).concat([{ id: d.id, nome: nome }]);
+      ativarPreset(opcoesPreset(nome, d.id));
+      carregarLotes();
+    } else if (d && d.code === 'restricted_resource') {
+      alert_('aL', 'ae', '❌ O servidor ainda não aceita criar lote (falta publicar a API nova). Use "um lote que já existe" abaixo.');
+    } else if (d && d.code === 'object_not_found') {
+      alert_('aL', 'ae', '❌ A integração do Notion não tem acesso à base Lotes & Investimentos. No Notion: ••• da base → Conexões → adicionar a integração.');
+    } else {
+      alert_('aL', 'ae', '❌ ' + esc((d && (d.message || d.code)) || 'Erro ao criar lote'));
+    }
+  } catch (e) { alert_('aL', 'ae', '❌ Erro de conexão: ' + esc(e.message)); }
+  btn.disabled = false; btn.textContent = '✓ Criar lote no Notion';
+}
+function usarLoteExistente() {
+  var ex = document.getElementById('nlExist');
+  if (!ex.value) { alert_('aL', 'ae', '⚠️ Escolha o lote na lista.'); return; }
+  ativarPreset(opcoesPreset(ex.options[ex.selectedIndex].text, ex.value));
+}
+
 // Inicializa
+desenharPresets();
 carregarLotes();
 </script>
 </body>
