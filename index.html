@@ -338,6 +338,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <button class="sel-btn" onclick="selPncOrigem('Pai',this)">Pai</button>
       <button class="sel-btn" onclick="selPncOrigem('Sociedade',this)">Sociedade</button>
       <button class="sel-btn" onclick="selPncOrigem('Consignado',this)">Consignado</button>
+      <button class="sel-btn" onclick="selPncOrigem('Pai + Felipe',this)">Pai + Felipe</button>
     </div>
 
     <div class="cl">Valor cobrado</div>
@@ -1822,7 +1823,7 @@ function gerarTextoFechamento(rows, dia, detalhado) {
     grupos[v.origem].total += v.valor;
     pagamentosDaRow(v).forEach(function(pp){ grupos[v.origem].pgtos[pp.pgto] = (grupos[v.origem].pgtos[pp.pgto]||0) + pp.valor; });
   });
-  var ordem = ['Sociedade','Pai','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
+  var ordem = ['Sociedade','Pai','Pai + Felipe','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
   Object.keys(grupos).forEach(function(o){ if (ordem.indexOf(o)===-1) ordem.push(o); });
 
   var pgtosDia = {};
@@ -1980,7 +1981,7 @@ function renderFechamento(rows) {
     pagamentosDaRow(v).forEach(function(pp){ g.pgtos[pp.pgto] = (g.pgtos[pp.pgto] || 0) + pp.valor; });
   });
 
-  var ordemOrigem = ['Sociedade','Pai','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
+  var ordemOrigem = ['Sociedade','Pai','Pai + Felipe','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
   Object.keys(grupos).forEach(function(o){ if (ordemOrigem.indexOf(o)===-1) ordemOrigem.push(o); });
 
   var html = '';

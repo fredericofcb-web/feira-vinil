@@ -215,7 +215,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <div class="card">
     <div class="cl">Preenche em todos os discos do lote</div>
     <div class="g2">
-      <div class="fld"><label>Propriedade</label><select id="nlProp"><option>Meu</option><option>Pai</option><option>Sociedade</option><option>Consignado</option></select></div>
+      <div class="fld"><label>Propriedade</label><select id="nlProp"><option>Meu</option><option>Pai</option><option>Sociedade</option><option>Consignado</option><option>Parceiro</option><option>Pai + Felipe</option></select></div>
       <div class="fld"><label>Custo por disco (R$)</label><input id="nlCusto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="6,00"/></div>
     </div>
     <div class="g2">
@@ -398,7 +398,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <!-- LOTE -->
   <div class="lote-card">
     <div class="cl">📦 Lote</div>
-    <select class="lsel" id="fLote"><option value="">⏳ Carregando lotes...</option></select>
+    <select class="lsel" id="fLote" onchange="propDoLote()"><option value="">⏳ Carregando lotes...</option></select>
     <div id="loteInfo" style="font-size:11px;color:var(--tx3);margin-top:5px"></div>
     <button onclick="carregarLotes()" style="background:transparent;border:none;color:var(--ye);font-size:11px;cursor:pointer;margin-top:3px;padding:0;font-family:inherit">↻ Recarregar</button>
   </div>
@@ -487,6 +487,8 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <span class="ch" onclick="selC('p','Pai',this,'cp')">Pai</span>
       <span class="ch" onclick="selC('p','Sociedade',this,'co')">Sociedade</span>
       <span class="ch" onclick="selC('p','Consignado',this,'cy')">Consignado</span>
+      <span class="ch" onclick="selC('p','Parceiro',this,'ct')">Parceiro</span>
+      <span class="ch" onclick="selC('p','Pai + Felipe',this,'co')">Pai + Felipe</span>
     </div>
     <div class="cl" style="margin-top:12px">Localização</div>
     <div class="chips" id="cL">
@@ -878,6 +880,9 @@ function selC(g,val,el,cls) {
 }
 function selCv(g,val,cls) {
   var c = document.getElementById(cmap[g]); if(!c) return;
+  // Opção com o nome exato (ex.: "Pai + Felipe") tem prioridade sobre a que só começa igual ("Pai").
+  var exato = Array.prototype.find.call(c.querySelectorAll('.ch'), function(el){ return el.textContent.trim()===val; });
+  if (exato) { c.querySelectorAll('.ch').forEach(function(el){ el.className='ch'; }); exato.className='ch '+cls; ST[smap[g]]=val; return; }
   c.querySelectorAll('.ch').forEach(function(el){
     var lbl=el.textContent.trim();
     if(val===lbl||val.startsWith(lbl)||lbl===val.split(' ')[0]){ el.className='ch '+cls; ST[smap[g]]=val; }
@@ -1484,7 +1489,7 @@ document.getElementById('scr-form').addEventListener('keydown', function(ev){
 
 // ═══ PRESETS DE LOTE (criados aqui, guardados neste aparelho) ═══
 var PRESETS_LS = 'dylan_presets_lote';
-var COR_PROP = {Meu:'cb', Pai:'cp', Sociedade:'co', Consignado:'cy'};
+var COR_PROP = {Meu:'cb', Pai:'cp', Sociedade:'co', Consignado:'cy', Parceiro:'ct', 'Pai + Felipe':'co'};
 var COR_LOC = {'Caixa A':'ct','Caixa B':'ct','Caixa C':'ct', Premium:'cp', Feira:'cg', Reserva:'cy'};
 function lerPresets() {
   try { var l = JSON.parse(localStorage.getItem(PRESETS_LS) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
@@ -1626,6 +1631,14 @@ function salvarPresetEditado() {
   gravarPresets(l); ST.editPreset = null; modoTelaLote(false);
   desenharPresets(); mostrar('home');
   alert_('aH', 'ao', '✓ Preset "' + esc(nome) + '" atualizado neste aparelho.');
+}
+
+// Ao escolher o lote no formulário, a propriedade acompanha: a do preset desse lote, ou a opção com o mesmo nome do lote.
+function propDoLote() {
+  var sel = document.getElementById('fLote'); if (!sel.value) return;
+  var p = lerPresets().filter(function (x) { return x.id === sel.value; })[0];
+  var nome = p && p.prop ? p.prop : sel.options[sel.selectedIndex].text.trim();
+  if (COR_PROP[nome]) selCv('p', nome, COR_PROP[nome]);
 }
 
 // ═══ MAIS DETALHES (adicionar rápido mostra só os campos de todo disco) ═══
