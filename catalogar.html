@@ -1433,7 +1433,7 @@ async function salvar() {
         if(site) sincronizarSite();
         ultimoSalvo = data; lembrarNome(art, alb);
         btn.disabled=false;
-        mostrarVnl(cod?'VNL-'+cod.number:'Salvo', nomeSalvo);
+        mostrarVnl(cod?'VNL-'+cod.number:'Salvo', nomeSalvo, preco);
         return;
       }
       document.getElementById('sucSub').textContent=art+(alb?' — '+alb:'')+' salvo!';
@@ -1899,7 +1899,8 @@ async function procurarDisco() {
 }
 function editarUltimo() { if (ultimoSalvo) abrirEdicao(ultimoSalvo, false); }
 // Depois de salvar no adicionar rápido: mostra o VNL grande e só limpa o formulário quando Fred confirmar que anotou.
-function mostrarVnl(codigo, nome) {
+function mostrarVnl(codigo, nome, preco) {
+  document.getElementById('vnlPreco').textContent = preco ? 'R$ ' + preco.toFixed(2).replace('.', ',') : '';
   document.getElementById('vnlCod').textContent = codigo;
   document.getElementById('vnlNome').textContent = nome;
   rotuloSalvar();
@@ -2006,6 +2007,7 @@ if (!modoCelularFoto()) { desenharPresets(); carregarLotes(); carregarNomes(); }
   <div class="card" style="width:100%;max-width:360px;text-align:center;padding:22px 16px">
     <div style="font-size:12px;color:var(--tx2)">✓ Salvo no Notion. Anote o código:</div>
     <div id="vnlCod" style="font-size:44px;font-weight:800;letter-spacing:1px;margin:10px 0 4px"></div>
+    <div id="vnlPreco" style="font-size:30px;font-weight:800;color:var(--gr);margin:2px 0 6px"></div>
     <div id="vnlNome" style="font-size:13px;color:var(--tx2);margin-bottom:18px"></div>
     <button class="btn bg" id="vnlOk" onclick="fecharVnl(false)">✓ Anotei, próximo disco</button>
     <button class="lnk" style="margin-top:12px" onclick="fecharVnl(true)">Editar este disco</button>
