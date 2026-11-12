@@ -425,8 +425,9 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
         </div>
       </div>
     </div>
-    <div class="fld"><label>Artista / Banda<span class="obg">*</span></label><input id="fArt" type="text" placeholder="Artista" onblur="checarDuplicata()"/></div>
-    <div class="fld"><label>Álbum / Título<span class="obg">*</span></label><input id="fAlb" type="text" placeholder="Álbum" onblur="checarDuplicata()"/></div>
+    <div class="fld"><label>Artista / Banda<span class="obg">*</span></label><input id="fArt" type="text" placeholder="Artista (pode colar &quot;Artista - Álbum&quot;)" list="dlArt" autocomplete="off" onblur="checarDuplicata()" oninput="sugerirAlbuns()"/></div>
+    <datalist id="dlArt"></datalist><datalist id="dlAlb"></datalist>
+    <div class="fld"><label>Álbum / Título<span class="obg">*</span></label><input id="fAlb" type="text" placeholder="Álbum" list="dlAlb" autocomplete="off" onblur="checarDuplicata()"/></div>
     <div class="g3">
       <div class="fld"><label>Ano</label><input id="fAno" type="text" placeholder="1977" maxlength="4"/></div>
       <div class="fld" data-extra><label>Formato</label>
@@ -1430,7 +1431,7 @@ async function salvar() {
       if(ST.rapido){
         var nomeSalvo=art+(alb?' — '+alb:'');
         if(site) sincronizarSite();
-        ultimoSalvo = data;
+        ultimoSalvo = data; lembrarNome(art, alb);
         btn.disabled=false;
         mostrarVnl(cod?'VNL-'+cod.number:'Salvo', nomeSalvo);
         return;
@@ -1789,6 +1790,60 @@ function modoCelularFoto() {
   return true;
 }
 
+// ═══ AUTOCOMPLETAR ARTISTA / ÁLBUM (nomes que já estão no Estoque) ═══
+// Lê só leitura o Estoque (100 por vez), guarda neste aparelho por 6 horas e soma os discos salvos aqui.
+var NOMES = {};   // artista -> { álbum: true }
+var NOMES_LS = 'dylan_nomes_estoque';
+function lembrarNome(art, alb) {
+  art = (art || '').trim(); alb = (alb || '').trim(); if (!art) return;
+  NOMES[art] = NOMES[art] || {}; if (alb) NOMES[art][alb] = true;
+}
+function desenharArtistas() {
+  var dl = document.getElementById('dlArt'); if (!dl) return;
+  dl.innerHTML = Object.keys(NOMES).sort(function (a, b) { return a.localeCompare(b, 'pt'); })
+    .map(function (a) { return '<option value="' + esc(a) + '">'; }).join('');
+}
+function sugerirAlbuns() {
+  var art = document.getElementById('fArt').value.trim().toLowerCase(), alb = {};
+  Object.keys(NOMES).forEach(function (a) { if (a.toLowerCase() === art) Object.keys(NOMES[a]).forEach(function (x) { alb[x] = true; }); });
+  document.getElementById('dlAlb').innerHTML = Object.keys(alb).sort().map(function (a) { return '<option value="' + esc(a) + '">'; }).join('');
+}
+async function carregarNomes() {
+  try {
+    var c = JSON.parse(localStorage.getItem(NOMES_LS) || 'null');
+    if (c && c.pares) { c.pares.forEach(function (x) { lembrarNome(x[0], x[1]); }); desenharArtistas(); }
+    if (c && Date.now() - c.t < 6 * 3600 * 1000) return;
+  } catch (e) {}
+  if (!chaveApps()) return;
+  var pares = [], cursor = null;
+  try {
+    for (var i = 0; i < 30; i++) {
+      var corpo = { page_size: 100 }; if (cursor) corpo.start_cursor = cursor;
+      var d = await nReq('POST', 'databases/' + DB_E + '/query', corpo);
+      if (!d || !Array.isArray(d.results)) return;
+      d.results.forEach(function (pg) {
+        var p = pg.properties || {}, a = txtProp(p, 'Título/Artista/Banda'), b = txtProp(p, 'Álbum');
+        if (a) { pares.push([a, b]); lembrarNome(a, b); }
+      });
+      if (!d.has_more || !d.next_cursor) break;
+      cursor = d.next_cursor;
+    }
+    desenharArtistas();
+    try { localStorage.setItem(NOMES_LS, JSON.stringify({ t: Date.now(), pares: pares })); } catch (e) {}
+  } catch (e) { /* sem conexão: segue sem sugestões */ }
+}
+// Colar "Artista - Álbum" no campo do artista separa nos dois campos.
+document.getElementById('fArt').addEventListener('paste', function (ev) {
+  var t = ((ev.clipboardData || window.clipboardData).getData('text') || '').replace(/\s+/g, ' ').trim();
+  var m = t.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  if (!m) return;
+  ev.preventDefault();
+  seta('fArt', m[1].trim()); seta('fAlb', m[2].trim()); sugerirAlbuns();
+  var prox = document.getElementById('fAno') || document.getElementById('fAlb');
+  if (prox.offsetParent === null) prox = document.getElementById('fPr2');
+  prox.focus();
+});
+
 // ═══ MAIS DETALHES (adicionar rápido mostra só os campos de todo disco) ═══
 function modoEnxuto(sim) {
   document.getElementById('scr-form').classList.toggle('enxuto', sim);
@@ -1945,7 +2000,7 @@ async function salvarEdicao(props, site, btn) {
 }
 
 // Inicializa (no celular aberto pelo QR, só a tela de foto)
-if (!modoCelularFoto()) { desenharPresets(); carregarLotes(); }
+if (!modoCelularFoto()) { desenharPresets(); carregarLotes(); carregarNomes(); }
 </script>
 <div id="vnlBox" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
   <div class="card" style="width:100%;max-width:360px;text-align:center;padding:22px 16px">
