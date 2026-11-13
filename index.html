@@ -194,6 +194,16 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 .fech-disco-val{text-align:right;white-space:nowrap;flex-shrink:0}
 .fech-disco-pg{font-size:10.5px;color:var(--tx3)}
 .fech-subtot{display:flex;justify-content:space-between;padding:5px 0;font-size:12px;color:var(--tx2);border-top:1px dashed var(--bor)}
+
+/* EVENTO (vendas agrupadas por evento, igual ao lote da catalogação) */
+.evento-card{background:var(--bg2);border:1px solid var(--bor);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.evento-card.on{background:var(--pub);border-color:var(--pu)}
+.evento-card.on .cl{color:var(--pu)}
+.evento-info{font-size:12px;color:var(--tx2);margin-top:6px;line-height:1.5}
+.evento-card.on .evento-info{color:var(--tx)}
+.evento-acoes{display:flex;gap:12px;margin-top:6px}
+.evento-acoes button{background:transparent;border:none;color:var(--pu);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit}
+.evento-tag{display:inline-block;font-size:10.5px;font-weight:700;color:var(--pu);background:var(--pub);border:1px solid var(--pubd);border-radius:100px;padding:1px 8px;margin-top:3px}
 </style>
 </head>
 <body>
@@ -205,6 +215,17 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <div id="aV" class="ale ae"></div>
   <div id="aVok" class="ale ao"></div>
   <div id="aVload" class="ale al"></div>
+
+  <!-- EVENTO: toda venda registrada fica ligada ao evento escolhido aqui -->
+  <div class="evento-card" id="eventoCard">
+    <div class="cl" style="margin-bottom:8px">🎪 Evento das vendas</div>
+    <select class="inp" id="eventoSel" style="font-size:15px;padding:10px 12px" onchange="selEvento(this.value)"></select>
+    <div class="evento-info" id="eventoInfo"></div>
+    <div class="evento-acoes" id="eventoAcoes" style="display:none">
+      <button onclick="editarDataEvento()">📅 Mudar data</button>
+      <button onclick="selEvento('')">✕ Encerrar evento</button>
+    </div>
+  </div>
 
   <!-- RESERVAS DO SITE -->
   <div class="card" id="resCard">
@@ -488,11 +509,21 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
 
 <!-- ══ RESUMO ══ -->
 <div id="scr-resumo" class="scr">
-  <div class="page-title">📊 Resumo do dia</div>
+  <div class="page-title" id="resumoTitulo">📊 Resumo do dia</div>
 
-  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-    <div class="cl" style="margin:0">📅 Dia</div>
-    <input class="inp" id="resumoData" type="date" style="width:auto;font-size:14px;padding:8px 10px" onchange="renderResumo()"/>
+  <div class="card">
+    <div class="filtro-chips" style="margin:0 0 10px">
+      <button class="fchip sel" id="resModoDia" onclick="setResumoModo('dia')">📅 Por dia</button>
+      <button class="fchip" id="resModoEv" onclick="setResumoModo('evento')">🎪 Por evento</button>
+    </div>
+    <div id="resumoDiaWrap" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div class="cl" style="margin:0">📅 Dia</div>
+      <input class="inp" id="resumoData" type="date" style="width:auto;font-size:14px;padding:8px 10px" onchange="renderResumo()"/>
+    </div>
+    <div id="resumoEvWrap" style="display:none">
+      <select class="inp" id="resumoEvento" style="font-size:15px;padding:10px 12px" onchange="renderResumo()"></select>
+      <div style="font-size:11px;color:var(--tx3);margin-top:6px">Junta todas as vendas do evento, de qualquer dia.</div>
+    </div>
   </div>
 
   <!-- FILA OFFLINE -->
@@ -524,7 +555,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   </div>
 
   <div class="card">
-    <div class="cl">Vendas do dia (agrupadas por carrinho)</div>
+    <div class="cl" id="vendasTitulo">Vendas do dia (agrupadas por carrinho)</div>
     <div id="vendasLista"><div class="empty">Nenhuma venda ainda</div></div>
   </div>
 </div>
@@ -599,6 +630,103 @@ function normTxt(s) {
 // localStorage seguro (não explode se cheio/indisponível)
 function lsGet(k, fb) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(e) { return fb; } }
 function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e) { console.warn('localStorage falhou:', e); return false; } }
+
+// ════════════════════════════════════════
+// EVENTOS — igual ao "lote" da catalogação: escolhe uma vez lá em cima e toda venda
+// registrada fica ligada ao evento (campo "Evento" na base Vendas + "Evento: X" nas Observações).
+// Evento pode ter data própria: serve pra lançar vendas atrasadas (ex: fotos do WhatsApp)
+// com a data real do evento em vez da data de hoje.
+// ════════════════════════════════════════
+var eventos = lsGet('vnl_eventos', []);          // [{nome, data}] — data 'AAAA-MM-DD' ou ''
+var eventoAtualNome = lsGet('vnl_evento_atual', '') || '';
+var semColunaEvento = false;   // vira true se o Notion recusar a coluna "Evento" (ainda não criada)
+var resumoModo = 'dia';        // 'dia' | 'evento'
+
+function limpaNomeEvento(s) { return String(s||'').replace(/[|\n\r]/g,' ').replace(/\s+/g,' ').trim().slice(0,80); }
+function dataBr(iso) { return iso ? iso.split('-').reverse().join('/') : ''; }
+function eventoAtual() {
+  if (!eventoAtualNome) return null;
+  return eventos.find(function(e){ return e.nome === eventoAtualNome; }) || { nome: eventoAtualNome, data: '' };
+}
+// Aceita 02/11/2026, 2/11, 2026-11-02. Vazio = sem data própria (usa o dia da venda).
+function lerDataDigitada(txt) {
+  txt = String(txt||'').trim();
+  if (!txt) return '';
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(txt);
+  if (m) return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  m = /^(\d{1,2})[\/\.-](\d{1,2})(?:[\/\.-](\d{2,4}))?$/.exec(txt);
+  if (!m) return null;
+  var ano = m[3] ? (m[3].length === 2 ? '20'+m[3] : m[3]) : String(new Date().getFullYear());
+  var d = parseInt(m[1],10), mes = parseInt(m[2],10);
+  if (d < 1 || d > 31 || mes < 1 || mes > 12) return null;
+  return ano+'-'+String(mes).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function salvarEventos() { lsSet('vnl_eventos', eventos); lsSet('vnl_evento_atual', eventoAtualNome); }
+function registrarEventoConhecido(nome) {
+  nome = limpaNomeEvento(nome);
+  if (nome && !eventos.some(function(e){ return e.nome === nome; })) { eventos.push({ nome: nome, data: '' }); lsSet('vnl_eventos', eventos); }
+}
+
+function pedirDataEvento(nome, atual) {
+  while (true) {
+    var r = window.prompt('Data do evento "'+nome+'" (ex: 02/11/2026).\n\nDeixe vazio pra usar a data do dia de cada venda.\nPreencha quando estiver lançando vendas atrasadas.', atual ? dataBr(atual) : '');
+    if (r === null) return undefined;
+    var d = lerDataDigitada(r);
+    if (d !== null) return d;
+    alert('Data inválida. Use o formato dia/mês/ano, ex: 02/11/2026');
+  }
+}
+
+function selEvento(v) {
+  if (v === '__novo__') {
+    var nome = limpaNomeEvento(window.prompt('Nome do evento (ex: PUNK DAY):') || '');
+    if (!nome) { renderEventoCard(); return; }
+    var ex = eventos.find(function(e){ return normTxt(e.nome) === normTxt(nome); });
+    if (ex) nome = ex.nome;
+    else {
+      var data = pedirDataEvento(nome, '');
+      if (data === undefined) { renderEventoCard(); return; }
+      eventos.push({ nome: nome, data: data });
+    }
+    eventoAtualNome = nome;
+  } else {
+    eventoAtualNome = v || '';
+  }
+  salvarEventos();
+  renderEventoCard();
+}
+function editarDataEvento() {
+  var ev = eventoAtual(); if (!ev) return;
+  var data = pedirDataEvento(ev.nome, ev.data);
+  if (data === undefined) return;
+  var e = eventos.find(function(x){ return x.nome === ev.nome; });
+  if (e) e.data = data; else eventos.push({ nome: ev.nome, data: data });
+  salvarEventos();
+  renderEventoCard();
+}
+function opcoesEventos(sel, selecionado, primeira) {
+  var lista = eventos.slice().sort(function(a,b){ return (b.data||'').localeCompare(a.data||'') || a.nome.localeCompare(b.nome); });
+  var html = '<option value="">'+primeira+'</option>';
+  lista.forEach(function(e){
+    html += '<option value="'+esc(e.nome).replace(/"/g,'&quot;')+'"'+(e.nome===selecionado?' selected':'')+'>🎪 '+esc(e.nome)+(e.data?' — '+dataBr(e.data):'')+'</option>';
+  });
+  sel.innerHTML = html;
+}
+function renderEventoCard() {
+  var sel = document.getElementById('eventoSel');
+  if (!sel) return;
+  opcoesEventos(sel, eventoAtualNome, '— Sem evento (venda normal) —');
+  sel.innerHTML += '<option value="__novo__">➕ Novo evento…</option>';
+  var ev = eventoAtual();
+  var card = document.getElementById('eventoCard');
+  var info = document.getElementById('eventoInfo');
+  card.classList.toggle('on', !!ev);
+  document.getElementById('eventoAcoes').style.display = ev ? 'flex' : 'none';
+  if (!ev) { info.textContent = 'Escolha um evento pra todas as vendas entrarem no fechamento dele.'; return; }
+  var d = ev.data || hojeLocal();
+  info.innerHTML = 'Toda venda agora entra em <strong>'+esc(ev.nome)+'</strong>, com data <strong>'+dataBr(d)+'</strong>'+
+    (ev.data && ev.data !== hojeLocal() ? ' <span style="color:var(--ye)">(data do evento, não a de hoje)</span>' : '')+'.';
+}
 
 // ════════════════════════════════════════
 // STATE
@@ -1457,6 +1585,7 @@ function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador, pgto2
   var somaBruto = itens.reduce(function(s, it){ return s + it.preco; }, 0);
   var descAcum = 0;
   var jobItens = [];
+  var ev = eventoAtual();
 
   for (var i = 0; i < totalItens; i++) {
     var item = itens[i];
@@ -1484,6 +1613,8 @@ function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador, pgto2
     }
     if (isPnc) obs = (obs ? obs+' | ' : '') + 'PNC' + (item.desc ? ' — '+item.desc : '');
     if (pgto2 && valor2 > 0) obs = (obs ? obs+' | ' : '') + 'Pgto dividido: '+pgto+' + '+pgto2;
+    // Evento também vai no texto: garante o agrupamento mesmo se a coluna "Evento" não existir no Notion
+    if (ev) obs = (obs ? obs+' | ' : '') + 'Evento: ' + ev.nome;
     // Observação digitada pelo operador: vai em todas as linhas da venda (campo Observações do Notion, máx. 2000).
     if (obsLivre) obs = (obs ? obs+' | ' : '') + 'Obs: ' + obsLivre;
 
@@ -1519,7 +1650,7 @@ function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador, pgto2
   }
 
   return {
-    t: 'venda', txn: txnId, dia: hojeLocal(),
+    t: 'venda', txn: txnId, dia: (ev && ev.data) ? ev.data : hojeLocal(), evento: ev ? ev.nome : '',
     pgto: pgto, pgto2: pgto2 || null, valor2: valor2 || 0, parcelas: parcelas, comprador: comprador || '',
     itens: jobItens, done: jobItens.map(function(){ return false; })
   };
@@ -1573,8 +1704,18 @@ async function enviarJob(job) {
     if (job.pgto === 'Cartão Crédito' && job.parcelas > 1) vProps['Parcelas'] = { number: job.parcelas };
     if (it.obs) vProps['Observações'] = { rich_text: [{ text:{ content: it.obs } }] };
     if (job.comprador) vProps['Comprador'] = { rich_text: [{ text:{ content: job.comprador } }] };
+    if (job.evento && !semColunaEvento) vProps['Evento'] = { select: { name: job.evento } };
 
-    await nReq('POST', 'pages', { parent: { database_id: DB_V }, properties: vProps });
+    try {
+      await nReq('POST', 'pages', { parent: { database_id: DB_V }, properties: vProps });
+    } catch (e) {
+      // Coluna "Evento" ainda não criada no Notion: grava sem ela (o evento já está nas Observações)
+      if (vProps['Evento'] && /Evento/.test(String(e && e.message)) && !isNetErr(e)) {
+        semColunaEvento = true; // só nesta sessão — depois de criar a coluna, basta recarregar a página
+        delete vProps['Evento'];
+        await nReq('POST', 'pages', { parent: { database_id: DB_V }, properties: vProps });
+      } else throw e;
+    }
     job.done[i] = true;
     console.log('[PDV] Venda registrada:', it.isPnc ? 'PNC' : it.id);
   }
@@ -1677,18 +1818,21 @@ function esc(s){ return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 var ultimasRows = []; // usado pelo botão "copiar fechamento"
 
 // Linhas pendentes (fila offline) do dia — entram no resumo mesmo sem internet
-function rowsDaFila(dia) {
+// filtro: { dia: 'AAAA-MM-DD' } ou { evento: 'PUNK DAY' }
+function rowsDaFila(filtro) {
   var fila = lsGet('vnl_fila', []);
   var out = [];
   fila.forEach(function(job) {
-    if (job.t !== 'venda' || job.dia !== dia) return;
+    if (job.t !== 'venda') return;
+    if (filtro.evento ? (job.evento || '') !== filtro.evento : job.dia !== filtro.dia) return;
     job.itens.forEach(function(it, i) {
       if (job.done[i]) return;
       out.push({
         titulo: '⏳ '+it.titulo, valor: it.valorItem, bruto: it.valorBruto,
         pgto: job.pgto, pgto2: job.pgto2 || '', valor2: it.valor2Item || 0,
         origem: it.origem || '—', parcelas: job.parcelas,
-        txn: job.txn, desconto: it.descontoItem, pend: true, obs: it.obs || ''
+        txn: job.txn, desconto: it.descontoItem, pend: true, obs: it.obs || '',
+        evento: job.evento || '', dia: job.dia
       });
     });
   });
@@ -1713,48 +1857,123 @@ function pagamentosDaRow(v) {
   return [{ pgto: v.pgto || 'Outro', valor: v.valor }];
 }
 
+// Evento gravado nas Observações ("... | Evento: PUNK DAY | Obs: ...")
+function eventoDoObs(obs) {
+  var m = /(?:^| \| )Evento: (.*?)(?= \| |$)/.exec(obs || '');
+  return m ? m[1].trim() : '';
+}
+
+function rowDaPagina(page) {
+  var p = page.properties;
+  function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
+  function gtxt(f){ try{ return p[f].rich_text.map(function(x){ return x.plain_text; }).join(''); }catch(e){ return ''; } }
+  function gs(f){ try{ return p[f].select.name; }catch(e){ return ''; } }
+  function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
+  function gd(f){ try{ return p[f].date.start.slice(0,10); }catch(e){ return ''; } }
+  var titulo = gt('Disco Vendido');
+  var obs = gtxt('Observações');
+  return {
+    titulo: titulo,
+    valor: gn('Valor Recebido'),
+    bruto: gn('Valor Bruto'),
+    pgto: gs('Forma de Pagamento'),
+    pgto2: gs('Pagamento 2'),
+    valor2: gn('Valor Pag. 2'),
+    origem: gs('Origem / Propriedade') || origemDoTitulo(titulo) || '—',
+    parcelas: gn('Parcelas'),
+    desconto: gn('Desconto'),
+    txn: gtxt('ID da Transação') || page.id,
+    obs: obs,
+    evento: gs('Evento') || eventoDoObs(obs),
+    dia: gd('Data da Venda')
+  };
+}
+
+// Busca todas as páginas (o Notion devolve no máximo 100 por vez)
+async function consultarVendas(corpo) {
+  var todas = [], cursor = null;
+  do {
+    var body = Object.assign({ page_size: 100 }, corpo);
+    if (cursor) body.start_cursor = cursor;
+    var res = await nReq('POST', 'databases/'+DB_V+'/query', body);
+    todas = todas.concat(res.results || []);
+    cursor = res.has_more ? res.next_cursor : null;
+  } while (cursor);
+  return todas;
+}
+
+async function vendasDoEvento(nome) {
+  var pelaObs = { property: 'Observações', rich_text: { contains: 'Evento: '+nome } };
+  var paginas;
+  try {
+    paginas = await consultarVendas({ filter: { or: [ { property: 'Evento', select: { equals: nome } }, pelaObs ] } });
+  } catch (e) {
+    if (isNetErr(e)) throw e;
+    paginas = await consultarVendas({ filter: pelaObs }); // coluna "Evento" ainda não existe no Notion
+  }
+  // "Evento: PUNK DAY" também casa com "Evento: PUNK DAY 2" — confere o nome exato
+  return paginas.map(rowDaPagina).filter(function(r){ return r.evento === nome; })
+    .sort(function(a,b){ return (a.dia||'').localeCompare(b.dia||''); });
+}
+
+// Descobre eventos já usados em vendas (ex: lançadas em outro aparelho)
+var eventosRemotosOk = false;
+async function carregarEventosRemotos() {
+  if (eventosRemotosOk) return;
+  try {
+    var paginas = await consultarVendas({ filter: { property: 'Observações', rich_text: { contains: 'Evento: ' } } });
+    paginas.map(rowDaPagina).forEach(function(r){ if (r.evento) registrarEventoConhecido(r.evento); });
+    eventosRemotosOk = true;
+  } catch (e) { console.warn('Não deu pra buscar eventos no Notion:', e); }
+}
+
+function setResumoModo(m) {
+  resumoModo = m;
+  document.getElementById('resModoDia').classList.toggle('sel', m === 'dia');
+  document.getElementById('resModoEv').classList.toggle('sel', m === 'evento');
+  document.getElementById('resumoDiaWrap').style.display = m === 'dia' ? 'flex' : 'none';
+  document.getElementById('resumoEvWrap').style.display = m === 'evento' ? 'block' : 'none';
+  if (m === 'evento') {
+    var sel = document.getElementById('resumoEvento');
+    var atual = sel.value || eventoAtualNome || (eventos[eventos.length-1] || {}).nome || '';
+    opcoesEventos(sel, atual, '— Escolha o evento —');
+    carregarEventosRemotos().then(function(){ opcoesEventos(sel, sel.value || atual, '— Escolha o evento —'); renderEventoCard(); });
+  }
+  renderResumo();
+}
+
 async function renderResumo() {
   atualizaFilaBadge();
+  var porEvento = resumoModo === 'evento';
   var dataEl = document.getElementById('resumoData');
   if (!dataEl.value) dataEl.value = hojeLocal();
   var dia = dataEl.value;
+  var evNome = porEvento ? document.getElementById('resumoEvento').value : '';
+
+  document.getElementById('resumoTitulo').textContent = porEvento ? '📊 Resumo do evento' : '📊 Resumo do dia';
+  document.getElementById('vendasTitulo').textContent = porEvento ? 'Vendas do evento (agrupadas por carrinho)' : 'Vendas do dia (agrupadas por carrinho)';
+  document.getElementById('btnCopiarFech').textContent = porEvento ? '📋 Copiar fechamento do evento' : '📋 Copiar fechamento do dia';
+
+  if (porEvento && !evNome) {
+    ultimasRows = [];
+    renderResumoCards([]);
+    document.getElementById('fechamentoLista').innerHTML = '<div class="empty">—</div>';
+    document.getElementById('vendasLista').innerHTML = '<div class="empty">Escolha um evento lá em cima.</div>';
+    return;
+  }
+
   document.getElementById('vendasLista').innerHTML = '<div class="empty">⏳ Carregando vendas...</div>';
   document.getElementById('fechamentoLista').innerHTML = '';
 
   var rows = [];
-
   try {
-    var res = await nReq('POST', 'databases/'+DB_V+'/query', {
-      filter: { property: 'Data da Venda', date: { equals: dia } },
-      page_size: 100
-    });
-
-    rows = (res.results || []).map(function(page) {
-      var p = page.properties;
-      function gt(f){ try{ return p[f].title[0].plain_text; }catch(e){ return ''; } }
-      function gtxt(f){ try{ return p[f].rich_text[0].plain_text; }catch(e){ return ''; } }
-      function gs(f){ try{ return p[f].select.name; }catch(e){ return ''; } }
-      function gn(f){ try{ return p[f].number||0; }catch(e){ return 0; } }
-      var titulo = gt('Disco Vendido');
-      return {
-        titulo: titulo,
-        valor: gn('Valor Recebido'),
-        bruto: gn('Valor Bruto'),
-        pgto: gs('Forma de Pagamento'),
-        pgto2: gs('Pagamento 2'),
-        valor2: gn('Valor Pag. 2'),
-        origem: gs('Origem / Propriedade') || origemDoTitulo(titulo) || '—',
-        parcelas: gn('Parcelas'),
-        desconto: gn('Desconto'),
-        txn: gtxt('ID da Transação') || page.id,
-        obs: gtxt('Observações')
-      };
-    });
+    if (porEvento) rows = await vendasDoEvento(evNome);
+    else rows = (await consultarVendas({ filter: { property: 'Data da Venda', date: { equals: dia } } })).map(rowDaPagina);
   } catch(e) {
     document.getElementById('vendasLista').innerHTML = '<div class="empty">📴 Sem internet — mostrando só o que está no aparelho.</div>';
   }
 
-  rows = rows.concat(rowsDaFila(dia));
+  rows = rows.concat(rowsDaFila(porEvento ? { evento: evNome } : { dia: dia }));
   ultimasRows = rows;
 
   renderResumoCards(rows);
@@ -1809,8 +2028,26 @@ function obsPorVenda(rows) {
 
 // Monta o texto do fechamento. detalhado=true lista disco por disco (vai pro Notion);
 // detalhado=false fica compacto — só totais por origem e pagamento (bom pro WhatsApp com 120 discos)
-function gerarTextoFechamento(rows, dia, detalhado) {
-  var dataBr = dia.split('-').reverse().join('/');
+// Totais por evento (só vendas que têm evento) — usado no resumo do dia
+function gruposPorEvento(rows) {
+  var g = {}, ordem = [];
+  rows.forEach(function(v) {
+    if (!v.evento) return;
+    if (!g[v.evento]) { g[v.evento] = { total: 0, discos: 0, origens: {} }; ordem.push(v.evento); }
+    g[v.evento].total += v.valor; g[v.evento].discos++;
+    g[v.evento].origens[v.origem] = (g[v.evento].origens[v.origem] || 0) + v.valor;
+  });
+  return { g: g, ordem: ordem };
+}
+function periodoDasRows(rows) {
+  var dias = rows.map(function(v){ return v.dia; }).filter(Boolean).sort();
+  if (!dias.length) return '';
+  return dias[0] === dias[dias.length-1] ? dataBr(dias[0]) : dataBr(dias[0])+' a '+dataBr(dias[dias.length-1]);
+}
+
+// evento (opcional): monta o fechamento do evento inteiro em vez do dia
+function gerarTextoFechamento(rows, dia, detalhado, evento) {
+  var diaBr = dataBr(dia);
   var total = rows.reduce(function(s,v){ return s+v.valor; },0);
   var descTot = rows.reduce(function(s,v){ return s+(v.desconto||0); },0);
   var txns = {}; rows.forEach(function(v){ txns[v.txn]=true; });
@@ -1829,7 +2066,14 @@ function gerarTextoFechamento(rows, dia, detalhado) {
   var pgtosDia = {};
   rows.forEach(function(v){ pagamentosDaRow(v).forEach(function(pp){ pgtosDia[pp.pgto] = (pgtosDia[pp.pgto]||0)+pp.valor; }); });
 
-  var txt = '📀 FECHAMENTO FEIRA — '+dataBr+'\n';
+  var txt;
+  if (evento) {
+    txt = '🎪 FECHAMENTO — '+String(evento).toUpperCase()+'\n';
+    var per = periodoDasRows(rows);
+    if (per) txt += 'Data: '+per+'\n';
+  } else {
+    txt = '📀 FECHAMENTO FEIRA — '+diaBr+'\n';
+  }
   txt += '━━━━━━━━━━━━━━━━━━\n';
   txt += 'Total: '+fmt(total)+' · '+rows.length+' disco(s) · '+Object.keys(txns).length+' venda(s)\n';
   if (descTot > 0) txt += 'Descontos dados: '+fmt(descTot)+'\n';
@@ -1844,13 +2088,25 @@ function gerarTextoFechamento(rows, dia, detalhado) {
     if (detalhado) {
       g.discos.forEach(function(v) {
         var pgLabel = pagamentosDaRow(v).map(function(pp){ return pp.pgto+' '+fmt(pp.valor); }).join(' + ');
-        txt += '  • '+v.titulo+' — '+fmt(v.valor)+' ('+pgLabel+')\n';
+        var quando = (evento && v.dia && periodoDasRows(rows).indexOf(' a ') > 0) ? dataBr(v.dia).slice(0,5)+' ' : '';
+        txt += '  • '+quando+v.titulo+' — '+fmt(v.valor)+' ('+pgLabel+')\n';
       });
     }
   });
 
   txt += '\n💳 TOTAL POR PAGAMENTO:\n';
   Object.keys(pgtosDia).forEach(function(k){ txt += '  '+k+': '+fmt(pgtosDia[k])+'\n'; });
+  if (!evento) {
+    var pe = gruposPorEvento(rows);
+    if (pe.ordem.length) {
+      txt += '\n🎪 POR EVENTO:\n';
+      pe.ordem.forEach(function(n) {
+        var e = pe.g[n];
+        txt += '  '+n+' — '+fmt(e.total)+' ('+e.discos+' disco'+(e.discos>1?'s':'')+') · '+
+          Object.keys(e.origens).map(function(o){ return o+' '+fmt(e.origens[o]); }).join(' · ')+'\n';
+      });
+    }
+  }
   var obsVendas = obsPorVenda(rows);
   if (obsVendas.length) {
     txt += '\n📝 OBSERVAÇÕES:\n';
@@ -1864,11 +2120,14 @@ function copiarFechamento() {
   var rows = ultimasRows;
   if (!rows.length) { showAle('aC','ae','Nada pra copiar ainda.'); return; }
   var dia = document.getElementById('resumoData').value || hojeLocal();
-  // Até 15 discos: lista disco por disco. Acima disso: compacto (o detalhe completo vive no Notion)
-  var txt = gerarTextoFechamento(rows, dia, rows.length <= 15);
+  var evento = resumoModo === 'evento' ? document.getElementById('resumoEvento').value : '';
+  // Até 15 discos: lista disco por disco. Acima disso: compacto (o detalhe completo vive no Notion).
+  // Fechamento de evento sempre lista disco por disco (é o que vai pro acerto).
+  var txt = gerarTextoFechamento(rows, dia, evento ? true : rows.length <= 15, evento);
 
   var btn = document.getElementById('btnCopiarFech');
-  function feito() { btn.textContent = '✓ Copiado!'; setTimeout(function(){ btn.textContent = '📋 Copiar fechamento do dia'; }, 2000); }
+  var rotulo = btn.textContent;
+  function feito() { btn.textContent = '✓ Copiado!'; setTimeout(function(){ btn.textContent = rotulo; }, 2000); }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt).then(feito).catch(function(){ copiaFallback(txt); feito(); });
   } else { copiaFallback(txt); feito(); }
@@ -1879,15 +2138,25 @@ function copiarFechamento() {
 async function salvarFechamento() {
   var rows = ultimasRows;
   if (!rows.length) { showAle('aC','ae','Nada pra salvar ainda.'); return; }
+  var evento = resumoModo === 'evento' ? document.getElementById('resumoEvento').value : '';
   var dia = document.getElementById('resumoData').value || hojeLocal();
-  var dataBr = dia.split('-').reverse().join('/');
+  if (evento) {
+    // Data do fechamento do evento = último dia com venda dele
+    var dias = rows.map(function(v){ return v.dia; }).filter(Boolean).sort();
+    dia = dias.length ? dias[dias.length-1] : hojeLocal();
+  }
+  var tituloFech = evento ? 'Fechamento Evento — '+evento : 'Fechamento Feira — '+dataBr(dia);
   var btn = document.getElementById('btnSalvarFech');
   btn.disabled = true; btn.textContent = '⏳ Salvando…';
 
   try {
     try {
+      // Substitui só o fechamento equivalente: o do mesmo evento, ou o do mesmo dia (sem mexer nos de evento)
+      var filtroAntigos = evento
+        ? { property: 'Fechamento', title: { equals: tituloFech } }
+        : { and: [ { property: 'Data', date: { equals: dia } }, { property: 'Fechamento', title: { starts_with: 'Fechamento Feira' } } ] };
       var antigos = await nReq('POST', 'databases/'+DB_F+'/query', {
-        filter: { property: 'Data', date: { equals: dia } }, page_size: 10
+        filter: filtroAntigos, page_size: 10
       });
       for (var a = 0; a < (antigos.results||[]).length; a++) {
         await nReq('PATCH', 'pages/'+antigos.results[a].id, { archived: true });
@@ -1896,7 +2165,7 @@ async function salvarFechamento() {
 
     var total = rows.reduce(function(s,v){ return s+v.valor; },0);
     var txns = {}; rows.forEach(function(v){ txns[v.txn]=true; });
-    var txt = gerarTextoFechamento(rows, dia, true);
+    var txt = gerarTextoFechamento(rows, dia, true, evento);
 
     // Notion limita ~2000 caracteres por bloco — divide o texto por linhas
     var blocos = [];
@@ -1911,7 +2180,7 @@ async function salvarFechamento() {
     await nReq('POST', 'pages', {
       parent: { database_id: DB_F },
       properties: {
-        'Fechamento': { title: [{ text: { content: 'Fechamento Feira — '+dataBr } }] },
+        'Fechamento': { title: [{ text: { content: tituloFech } }] },
         'Data':   { date: { start: dia } },
         'Total':  { number: Math.round(total*100)/100 },
         'Discos': { number: rows.length },
@@ -1959,10 +2228,13 @@ function renderVendasAgrupadas(rows) {
     var titulos = itens.map(function(i){ return i.titulo; }).join(' + ');
     var qtdLabel = itens.length > 1 ? itens.length+' discos' : '1 disco';
     var obsVenda = obsPorVenda(itens)[0];
+    var porEvento = resumoModo === 'evento';
+    var subExtra = (porEvento && itens[0].dia) ? ' · '+dataBr(itens[0].dia) : '';
+    var tagEv = (!porEvento && itens[0].evento) ? '<div><span class="evento-tag">🎪 '+esc(itens[0].evento)+'</span></div>' : '';
 
     html += '<div class="venda-row">'+
       '<div class="venda-cov-ph">'+(itens.length>1?'📦':'🎵')+'</div>'+
-      '<div style="min-width:0;flex:1"><div class="venda-art" style="white-space:normal">'+esc(titulos)+'</div><div class="venda-sub">'+qtdLabel+'</div>'+(obsVenda ? '<div class="venda-sub" style="white-space:normal;color:var(--ye)">📝 '+esc(obsVenda.obs)+'</div>' : '')+'</div>'+
+      '<div style="min-width:0;flex:1"><div class="venda-art" style="white-space:normal">'+esc(titulos)+'</div><div class="venda-sub">'+qtdLabel+subExtra+'</div>'+tagEv+(obsVenda ? '<div class="venda-sub" style="white-space:normal;color:var(--ye)">📝 '+esc(obsVenda.obs)+'</div>' : '')+'</div>'+
       '<div style="margin-left:auto;text-align:right;flex-shrink:0"><div class="venda-val">'+fmt(total)+'</div><div class="venda-pgto">'+esc(pgto||'')+esc(parcelasInfo)+'</div></div></div>';
   });
   document.getElementById('vendasLista').innerHTML = html;
@@ -2012,6 +2284,20 @@ function renderFechamento(rows) {
     html += '<div class="row"><span class="rk">'+esc(pg)+'</span><span class="rv">'+fmt(pgtosDia[pg])+'</span></div>';
   });
   html += '</div>';
+
+  // Resumo do dia: quanto saiu em cada evento (vendas sem evento ficam só no total)
+  if (resumoModo !== 'evento') {
+    var pe = gruposPorEvento(rows);
+    if (pe.ordem.length) {
+      html += '<div style="margin-top:12px"><div class="cl" style="margin-bottom:4px">🎪 Por evento</div>';
+      pe.ordem.forEach(function(n) {
+        var e = pe.g[n];
+        var orig = Object.keys(e.origens).map(function(o){ return esc(o)+' '+fmt(e.origens[o]); }).join(' · ');
+        html += '<div class="row"><span class="rk">'+esc(n)+' <span style="color:var(--tx3)">('+e.discos+')</span><div style="font-size:11px;color:var(--tx3)">'+orig+'</div></span><span class="rv">'+fmt(e.total)+'</span></div>';
+      });
+      html += '</div>';
+    }
+  }
 
   document.getElementById('fechamentoLista').innerHTML = html;
 }
@@ -2246,6 +2532,7 @@ async function salvarPedido() {
 // ════════════════════════════════════════
 window.addEventListener('load', function() {
   restoreCart();          // carrinho sobrevive a refresh
+  renderEventoCard();     // evento escolhido continua valendo depois de recarregar
   atualizaFilaBadge();    // mostra vendas pendentes de envio
   flushFila(false);       // tenta enviar o que ficou pendente
   atualizaCatInfo();
