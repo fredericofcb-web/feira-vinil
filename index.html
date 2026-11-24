@@ -423,7 +423,10 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
       <button class="pgto-btn" onclick="selCartPgto('PIX',this)">⚡ Pix</button>
       <button class="pgto-btn" onclick="selCartPgto('Cartão Débito',this)">💳 Débito</button>
       <button class="pgto-btn" onclick="selCartPgto('Cartão Crédito',this)">💳 Crédito</button>
+      <button class="pgto-btn" onclick="selCartPgto('Troca',this)">🔄 Troca<br/><span style="font-size:11px;opacity:.7">só a sua comissão</span></button>
+      <button class="pgto-btn" onclick="selCartPgto('Cortesia',this)">🎁 Cortesia<br/><span style="font-size:11px;opacity:.7">sai de graça (R$ 0)</span></button>
     </div>
+    <div class="taxa-info" id="cartTrocaInfo" style="display:none;margin:-4px 0 10px"></div>
     <div class="parcelas-wrap" id="cartParcelasWrap">
       <div class="parc-grid">
         <button class="parc-btn sel" onclick="selCartParcela(1,this)">1x</button>
@@ -1377,10 +1380,44 @@ function renderCarrinho() {
   renderCartTotal();
 }
 
+// Comissão pela regra do lote (Meu = 0: o disco já é seu)
+function comissaoRegra(item) {
+  var r = REGRAS_REPASSE[item.origem];
+  if (!r || item.origem === 'Meu') return 0;
+  return arred2((item.preco||0) * r.pct / 100);
+}
+function cartComissaoTotal() {
+  if (cartPgto !== 'Troca') return 0;
+  return arred2(carrinho.reduce(function(s,i){ return s + comissaoRegra(i); }, 0));
+}
+function renderCartEspecial() {
+  var info = document.getElementById('cartTrocaInfo');
+  var esp = ehPgtoEspecial(cartPgto);
+  document.getElementById('cartSplitLink').style.display = esp ? 'none' : '';
+  if (!esp) { info.style.display = 'none'; return; }
+  var linhas = carrinho.map(function(i) {
+    var c = cartPgto === 'Troca' ? comissaoRegra(i) : 0;
+    var r = REGRAS_REPASSE[i.origem];
+    return '• '+esc(i.artista)+' ('+esc(i.origem||'sem origem')+', '+fmt(i.preco)+')'+
+      (cartPgto === 'Troca' ? ' → '+(r && i.origem !== 'Meu' ? r.pct+'% = ' : '')+'<strong>'+fmt(c)+'</strong>' : '');
+  }).join('<br/>');
+  info.innerHTML = (cartPgto === 'Troca'
+    ? '🔄 Os discos saem do estoque e entra só a sua comissão, pela regra de cada lote:<br/>'
+    : '🎁 Os discos saem do estoque de graça (R$ 0). Se tiver comissão numa cortesia, lance o disco sozinho na venda rápida.<br/>')+linhas;
+  info.style.display = 'block';
+}
+
 function renderCartTotal() {
   var sub = carrinho.reduce(function(s,i){ return s+i.preco; }, 0);
   var desc = parseFloat(document.getElementById('cartDesc').value) || 0;
   var total = Math.max(0, sub - desc);
+  renderCartEspecial();
+  if (ehPgtoEspecial(cartPgto)) {
+    document.getElementById('cartTotal').textContent = fmt(cartComissaoTotal());
+    document.getElementById('cartDescInfo').textContent = cartPgto === 'Troca' ? 'Sua comissão (troca)' : 'Cortesia';
+    document.getElementById('cartDescPct').textContent = '';
+    return;
+  }
   document.getElementById('cartTotal').textContent = fmt(total);
   if (desc > 0) {
     var pct = sub > 0 ? Math.round(desc/sub*100) : 0;
@@ -1411,6 +1448,9 @@ function removerCart(idx) {
 function limparCarrinho() {
   carrinho = []; cartPgto = null; cartParcelas = 1;
   if (cartSplitAtivo) toggleCartSplit();
+  document.querySelectorAll('#cartPgto1Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
+  document.getElementById('cartTrocaInfo').style.display = 'none';
+  document.getElementById('cartSplitLink').style.display = '';
   saveCart();
   document.getElementById('cartCard').style.display = 'none';
   document.getElementById('cartDesc').value = '';
@@ -1423,6 +1463,7 @@ function selCartPgto(tipo, btn) {
   cartPgto = tipo;
   document.querySelectorAll('#cartPgto1Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
+  if (ehPgtoEspecial(tipo) && cartSplitAtivo) toggleCartSplit();
   if (tipo === 'Cartão Crédito') document.getElementById('cartParcelasWrap').classList.add('show');
   else { document.getElementById('cartParcelasWrap').classList.remove('show'); cartParcelas = 1; document.getElementById('cartTaxaInfo').textContent = ''; }
   renderCartTotal();
@@ -1485,7 +1526,13 @@ async function fecharCarrinho() {
   var sub = carrinho.reduce(function(s,i){ return s+i.preco; }, 0);
   var total = Math.max(0, sub - desc);
   var cartValor2 = 0;
-  if (cartSplitAtivo) {
+  var esp = ehPgtoEspecial(cartPgto);
+  if (esp) {
+    // Troca/cortesia: cada disco leva a comissão da regra do seu lote; sem desconto nem divisão
+    carrinho.forEach(function(i){ i.comissaoEspecial = cartPgto === 'Troca' ? comissaoRegra(i) : 0; });
+    desc = 0;
+    total = cartComissaoTotal();
+  } else if (cartSplitAtivo) {
     cartValor2 = parseFloat(document.getElementById('cartValorPag2').value) || 0;
     if (!cartPgto2) { showAle('aVload','ae','Selecione a forma do 2º pagamento (ou cancele a divisão).'); return; }
     if (cartValor2 <= 0 || cartValor2 >= total) { showAle('aVload','ae','O 2º pagamento deve ser maior que zero e menor que o total.'); return; }
@@ -1496,7 +1543,7 @@ async function fecharCarrinho() {
   showAle('aVload','al','Registrando '+carrinho.length+' disco(s)...');
 
   var qtd = carrinho.length;
-  var job = montarJob(carrinho, total, cartPgto, cartParcelas, desc, comprador, cartSplitAtivo ? cartPgto2 : null, cartValor2, obsLivre);
+  var job = montarJob(carrinho, total, cartPgto, cartParcelas, desc, comprador, (cartSplitAtivo && !esp) ? cartPgto2 : null, cartValor2, obsLivre);
   var r = await venderComFallback(job);
 
   if (r.ok || r.queued) {
@@ -1660,7 +1707,9 @@ function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador, pgto2
     var isPnc = item.tipo === 'pnc';
 
     var valorItem, descontoItem;
-    if (totalItens === 1) {
+    if (ehPgtoEspecial(pgto) && totalItens > 1) {
+      valorItem = item.comissaoEspecial || 0; descontoItem = 0; // troca/cortesia no carrinho: comissão por disco
+    } else if (totalItens === 1) {
       valorItem = valorTotal; descontoItem = desconto;
     } else if (i === totalItens - 1) {
       descontoItem = Math.round((desconto - descAcum) * 100) / 100;
