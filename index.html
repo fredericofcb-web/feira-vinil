@@ -288,17 +288,20 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
   <!-- PGTO DISCO ÚNICO -->
   <div class="card" id="pgtoCard" style="display:none">
     <div class="cl" style="margin-bottom:6px">Ou venda rápida (disco único)</div>
-    <div class="cl" style="margin-bottom:8px">Valor cobrado</div>
+    <div class="cl" style="margin-bottom:8px" id="valorLabel">Valor cobrado</div>
     <div class="valor-wrap">
       <span class="valor-pre">R$</span>
       <input class="valor-inp" id="valorFinal" type="number" placeholder="0,00" step="0.50" min="0" inputmode="decimal" oninput="atualizaTaxa()"/>
     </div>
+    <div class="taxa-info" id="trocaInfo" style="display:none;margin:-4px 0 10px"></div>
     <div class="cl" style="margin-bottom:8px" id="pgto1Label">Forma de pagamento</div>
     <div class="pgto-grid" id="pgto1Grid">
       <button class="pgto-btn" onclick="selPgto('Dinheiro',this)">💵 Dinheiro</button>
       <button class="pgto-btn" onclick="selPgto('PIX',this)">⚡ Pix</button>
       <button class="pgto-btn" onclick="selPgto('Cartão Débito',this)">💳 Débito</button>
       <button class="pgto-btn" onclick="selPgto('Cartão Crédito',this)">💳 Crédito</button>
+      <button class="pgto-btn" onclick="selPgto('Troca',this)">🔄 Troca<br/><span style="font-size:11px;opacity:.7">só a sua comissão</span></button>
+      <button class="pgto-btn" onclick="selPgto('Cortesia',this)">🎁 Cortesia<br/><span style="font-size:11px;opacity:.7">sai de graça (R$ 0)</span></button>
     </div>
     <div class="parcelas-wrap" id="parcelasWrap">
       <div class="parc-grid">
@@ -552,6 +555,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSyst
     <div id="fechamentoLista"><div class="empty">—</div></div>
     <button class="btn bb" id="btnCopiarFech" onclick="copiarFechamento()" style="margin-top:10px">📋 Copiar fechamento do dia</button>
     <button class="btn bp" id="btnSalvarFech" onclick="salvarFechamento()" style="margin-top:8px">💾 Salvar fechamento no Notion</button>
+    <button class="btn bg" id="btnExcel" onclick="exportarExcel()" style="margin-top:8px">📊 Baixar planilha do fechamento (Excel)</button>
   </div>
 
   <div class="card">
@@ -1048,6 +1052,7 @@ function exibirDisco(d, offline) {
 
   document.getElementById('valorFinal').value = (d.preco||0).toFixed(2);
   pgtoAtual = null; parcelasAtual = 1;
+  modoEspecial(null);
   if (splitAtivo) toggleSplit();
   document.querySelectorAll('#pgtoCard .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
   document.querySelectorAll('#parcelasWrap .parc-btn').forEach(function(b){ b.classList.remove('sel'); });
@@ -1066,10 +1071,70 @@ function exibirDisco(d, offline) {
 // ════════════════════════════════════════
 // PGTO DISCO ÚNICO
 // ════════════════════════════════════════
+
+// ── REGRAS DO ACERTO (quanto do valor fica pra você) ──
+// O dinheiro sempre cai na conta do Pai; o acerto é o que ele te repassa.
+// Cartão (débito, crédito, parcelado): desconta a taxa antes da divisão. Pix e dinheiro: 100% do valor.
+var TAXA_CARTAO_ACERTO = 5; // %
+var REGRAS_REPASSE = {
+  'Sociedade':    { pct: 50,  txt: '50% (sociedade 50/50)' },
+  'Pai':          { pct: 10,  txt: '10% de comissão' },
+  'Pai + Felipe': { pct: 20,  txt: '20% (10% Pai + 10% Felipe)' },
+  'Meu':          { pct: 100, txt: '100% (disco é seu)' }
+};
+// Troca: o disco sai, entra só a sua comissão (100% sua, sem taxa).
+// Cortesia: o disco sai de graça — R$ 0, não entra no caixa nem no repasse.
+function ehPgtoEspecial(p) { return p === 'Troca' || p === 'Cortesia'; }
+function arred2(n) { return Math.round((n||0)*100)/100; }
+
+var valorAntesEspecial = null;
+function modoEspecial(tipo, restaurar) {
+  var inp = document.getElementById('valorFinal');
+  var info = document.getElementById('trocaInfo');
+  var split = document.getElementById('splitLink');
+  if (!tipo) {
+    document.getElementById('valorLabel').textContent = 'Valor cobrado';
+    inp.disabled = false;
+    info.style.display = 'none';
+    split.style.display = '';
+    if (restaurar && valorAntesEspecial !== null) inp.value = valorAntesEspecial;
+    valorAntesEspecial = null;
+    return;
+  }
+  if (valorAntesEspecial === null) valorAntesEspecial = inp.value;
+  if (splitAtivo) toggleSplit();
+  split.style.display = 'none';
+  var preco = discoAtual ? (discoAtual.preco||0) : 0;
+  var origem = discoAtual ? discoAtual.origem : '';
+  if (tipo === 'Troca') {
+    var r = REGRAS_REPASSE[origem];
+    var pct = r ? (origem === 'Meu' ? 0 : r.pct) : 0;
+    document.getElementById('valorLabel').textContent = 'Sua comissão na troca';
+    inp.disabled = false;
+    inp.value = arred2(preco * pct / 100).toFixed(2);
+    info.innerHTML = '🔄 Disco de '+fmt(preco)+' ('+esc(origem||'sem origem')+') sai do estoque. '+
+      (pct ? 'Sugestão: '+pct+'% = <strong>'+fmt(preco*pct/100)+'</strong>. ' : '')+
+      'Entra no relatório só esse valor, 100% seu no acerto. Pode ajustar.';
+  } else {
+    var rc = REGRAS_REPASSE[origem];
+    var pctc = rc ? (origem === 'Meu' ? 0 : rc.pct) : 0;
+    document.getElementById('valorLabel').textContent = 'Sua comissão na cortesia (se tiver)';
+    inp.value = '0.00';
+    inp.disabled = false;
+    info.innerHTML = '🎁 Disco de '+fmt(preco)+' ('+esc(origem||'sem origem')+') sai do estoque de graça — não entra dinheiro no caixa. '+
+      (pctc ? 'Se você tem comissão nele, pela regra é '+pctc+'% = <strong>'+fmt(preco*pctc/100)+'</strong> — digite acima. ' : '')+
+      'Fica separado no relatório.';
+  }
+  info.style.display = 'block';
+}
+
 function selPgto(tipo, btn) {
+  var eraEspecial = ehPgtoEspecial(pgtoAtual);
   pgtoAtual = tipo;
   document.querySelectorAll('#pgto1Grid .pgto-btn').forEach(function(b){ b.classList.remove('sel'); });
   btn.classList.add('sel');
+  if (ehPgtoEspecial(tipo)) modoEspecial(tipo);
+  else if (eraEspecial) modoEspecial(null, true);
   if (tipo === 'Cartão Crédito') document.getElementById('parcelasWrap').classList.add('show');
   else { document.getElementById('parcelasWrap').classList.remove('show'); parcelasAtual = 1; document.getElementById('taxaInfo').textContent = ''; }
   atualizaSplitInfo();
@@ -1130,9 +1195,12 @@ async function confirmar() {
   if (!discoAtual) return;
   if (!pgtoAtual) { showAle('aV','ae','Selecione a forma de pagamento.'); return; }
   var valor = parseFloat(document.getElementById('valorFinal').value);
-  if (!valor || valor <= 0) { showAle('aV','ae','Informe o valor cobrado.'); return; }
+  var especial = ehPgtoEspecial(pgtoAtual);
+  if (especial) {
+    if (isNaN(valor) || valor < 0) { showAle('aV','ae','Informe a sua comissão (pode ser 0).'); return; }
+  } else if (!valor || valor <= 0) { showAle('aV','ae','Informe o valor cobrado.'); return; }
   var valor2 = 0;
-  if (splitAtivo) {
+  if (splitAtivo && !especial) {
     valor2 = parseFloat(document.getElementById('valorPag2').value) || 0;
     if (!pgto2Atual) { showAle('aV','ae','Selecione a forma do 2º pagamento (ou cancele a divisão).'); return; }
     if (valor2 <= 0 || valor2 >= valor) { showAle('aV','ae','O 2º pagamento deve ser maior que zero e menor que o total.'); return; }
@@ -1142,7 +1210,7 @@ async function confirmar() {
   document.getElementById('btnConfirmar').disabled = true;
   showAle('aVload','al','Registrando venda...');
 
-  var job = montarJob([discoAtual], valor, pgtoAtual, parcelasAtual, 0, comprador, splitAtivo ? pgto2Atual : null, valor2, obsLivre);
+  var job = montarJob([discoAtual], valor, pgtoAtual, parcelasAtual, 0, comprador, (splitAtivo && !especial) ? pgto2Atual : null, valor2, obsLivre);
   var r = await venderComFallback(job);
 
   if (r.ok || r.queued) {
@@ -1612,6 +1680,11 @@ function montarJob(itens, valorTotal, pgto, parcelas, desconto, comprador, pgto2
       obs = 'Lote com '+totalItens+' item(ns)';
     }
     if (isPnc) obs = (obs ? obs+' | ' : '') + 'PNC' + (item.desc ? ' — '+item.desc : '');
+    if (ehPgtoEspecial(pgto)) {
+      var pctCom = item.preco > 0 ? Math.round(valorItem / item.preco * 1000) / 10 : 0;
+      obs = (obs ? obs+' | ' : '') + pgto + ' — disco de '+fmt(item.preco)+' ('+(item.origem||'sem origem')+') · ' +
+        (valorItem > 0 ? 'comissão '+String(pctCom).replace('.',',')+'% = '+fmt(valorItem) : 'sem comissão');
+    }
     if (pgto2 && valor2 > 0) obs = (obs ? obs+' | ' : '') + 'Pgto dividido: '+pgto+' + '+pgto2;
     // Evento também vai no texto: garante o agrupamento mesmo se a coluna "Evento" não existir no Notion
     if (ev) obs = (obs ? obs+' | ' : '') + 'Evento: ' + ev.nome;
@@ -1690,7 +1763,7 @@ async function enviarJob(job) {
       'Forma de Pagamento': { select: { name: job.pgto } },
       'Data da Venda':      { date:   { start: job.dia } },
       'Canal':              { select: { name: 'Feira' } },
-      'Tipo de Operação':   { select: { name: 'Venda' } },
+      'Tipo de Operação':   { select: { name: ehPgtoEspecial(job.pgto) ? job.pgto : 'Venda' } },
       'Status Financeiro':  { select: { name: 'Recebido' } },
       'ID da Transação':    { rich_text: [{ text:{ content: job.txn } }] }
     };
@@ -1831,7 +1904,7 @@ function rowsDaFila(filtro) {
         titulo: '⏳ '+it.titulo, valor: it.valorItem, bruto: it.valorBruto,
         pgto: job.pgto, pgto2: job.pgto2 || '', valor2: it.valor2Item || 0,
         origem: it.origem || '—', parcelas: job.parcelas,
-        txn: job.txn, desconto: it.descontoItem, pend: true, obs: it.obs || '',
+        txn: job.txn, desconto: it.descontoItem, pend: true, obs: it.obs || '', comprador: job.comprador || '',
         evento: job.evento || '', dia: job.dia
       });
     });
@@ -1883,6 +1956,7 @@ function rowDaPagina(page) {
     parcelas: gn('Parcelas'),
     desconto: gn('Desconto'),
     txn: gtxt('ID da Transação') || page.id,
+    comprador: gtxt('Comprador'),
     obs: obs,
     evento: gs('Evento') || eventoDoObs(obs),
     dia: gd('Data da Venda')
@@ -1981,6 +2055,59 @@ async function renderResumo() {
   renderFechamento(rows);
 }
 
+// ── ACERTO: taxa de cartão + regra de cada lote → quanto o Pai te repassa ──
+var ORDEM_ORIGENS = ['Sociedade','Pai','Pai + Felipe','Meu','Consignado','Parceiro','—'];
+var ORDEM_PGTOS = ['Débito','Crédito','Pix','Dinheiro','Troca','Cortesia'];
+function nomePgto(p) {
+  return { 'Cartão Débito':'Débito', 'Cartão Crédito':'Crédito', 'PIX':'Pix' }[p] || p || 'Outro';
+}
+function ehCartao(p) { return p === 'Cartão Débito' || p === 'Cartão Crédito'; }
+function ehEspecialRow(v) { return ehPgtoEspecial(v.pgto); }
+function ordenarPor(lista, ordem) {
+  return lista.slice().sort(function(a,b){
+    var ia = ordem.indexOf(a), ib = ordem.indexOf(b);
+    return (ia<0?99:ia) - (ib<0?99:ib);
+  });
+}
+// Cada venda → linhas por forma de pagamento, com taxa, líquido e repasse
+function linhasAcerto(v) {
+  var regra = REGRAS_REPASSE[v.origem] || null;
+  return pagamentosDaRow(v).map(function(pp) {
+    var especial = ehPgtoEspecial(pp.pgto);
+    var taxa = ehCartao(pp.pgto) ? arred2(pp.valor * TAXA_CARTAO_ACERTO / 100) : 0;
+    var liq = arred2(pp.valor - taxa);
+    var pct = especial ? 100 : (regra ? regra.pct : null); // troca/cortesia: o valor lançado já é a sua comissão
+    return {
+      pgto: nomePgto(pp.pgto), bruto: pp.valor, taxa: taxa, liq: liq, pct: pct,
+      repasse: pct === null ? 0 : arred2(liq * pct / 100), especial: especial
+    };
+  });
+}
+function calcAcerto(rows) {
+  var grupos = {};
+  var tot = { vendido:0, taxa:0, liq:0, repasse:0, discos:0, especiais:0, refEspeciais:0, semRegra:[] };
+  rows.forEach(function(v) {
+    var o = v.origem || '—';
+    if (!grupos[o]) grupos[o] = { pgtos:{}, vendido:0, taxa:0, liq:0, repasse:0, discos:0, especiais:0, refEspeciais:0,
+      regra: REGRAS_REPASSE[o] ? REGRAS_REPASSE[o].txt : '⚠️ sem regra definida — conferir' };
+    var g = grupos[o];
+    if (ehEspecialRow(v)) { g.especiais++; tot.especiais++; g.refEspeciais += v.bruto||0; tot.refEspeciais += v.bruto||0; }
+    else { g.discos++; tot.discos++; }
+    if (!REGRAS_REPASSE[o] && !ehEspecialRow(v) && tot.semRegra.indexOf(o) < 0) tot.semRegra.push(o);
+    linhasAcerto(v).forEach(function(l) {
+      var p = g.pgtos[l.pgto] || (g.pgtos[l.pgto] = { bruto:0, taxa:0, liq:0, repasse:0, pct:l.pct, qtd:0 });
+      p.bruto += l.bruto; p.taxa += l.taxa; p.liq += l.liq; p.repasse += l.repasse; p.qtd++;
+      g.repasse += l.repasse; tot.repasse += l.repasse;
+      if (!l.especial) {
+        g.vendido += l.bruto; g.taxa += l.taxa; g.liq += l.liq;
+        tot.vendido += l.bruto; tot.taxa += l.taxa; tot.liq += l.liq;
+      }
+    });
+  });
+  var ordem = ordenarPor(Object.keys(grupos), ORDEM_ORIGENS);
+  return { grupos: grupos, ordem: ordem, tot: tot };
+}
+
 // Margem estimada: cruza o VNL-id do título da venda com o custo no catálogo local
 function margemEstimada(rows) {
   if (!catalogo.length) return null;
@@ -1995,7 +2122,8 @@ function margemEstimada(rows) {
 }
 
 function renderResumoCards(rows) {
-  var bruto = rows.reduce(function(s,v){ return s+v.valor; }, 0);
+  // Troca/cortesia não é venda: o valor delas é só a sua comissão — fica fora do total vendido
+  var bruto = rows.reduce(function(s,v){ return s+(ehEspecialRow(v) ? 0 : v.valor); }, 0);
   var txns = {};
   rows.forEach(function(v){ txns[v.txn] = true; });
   var qtdTransacoes = Object.keys(txns).length;
@@ -2048,7 +2176,8 @@ function periodoDasRows(rows) {
 // evento (opcional): monta o fechamento do evento inteiro em vez do dia
 function gerarTextoFechamento(rows, dia, detalhado, evento) {
   var diaBr = dataBr(dia);
-  var total = rows.reduce(function(s,v){ return s+v.valor; },0);
+  var total = rows.reduce(function(s,v){ return s+(ehEspecialRow(v) ? 0 : v.valor); },0);
+  var acerto = calcAcerto(rows);
   var descTot = rows.reduce(function(s,v){ return s+(v.desconto||0); },0);
   var txns = {}; rows.forEach(function(v){ txns[v.txn]=true; });
   var pend = rows.filter(function(v){ return v.pend; }).length;
@@ -2057,7 +2186,7 @@ function gerarTextoFechamento(rows, dia, detalhado, evento) {
   rows.forEach(function(v) {
     if (!grupos[v.origem]) grupos[v.origem] = { discos: [], pgtos: {}, total: 0 };
     grupos[v.origem].discos.push(v);
-    grupos[v.origem].total += v.valor;
+    if (!ehEspecialRow(v)) grupos[v.origem].total += v.valor;
     pagamentosDaRow(v).forEach(function(pp){ grupos[v.origem].pgtos[pp.pgto] = (grupos[v.origem].pgtos[pp.pgto]||0) + pp.valor; });
   });
   var ordem = ['Sociedade','Pai','Pai + Felipe','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
@@ -2075,7 +2204,8 @@ function gerarTextoFechamento(rows, dia, detalhado, evento) {
     txt = '📀 FECHAMENTO FEIRA — '+diaBr+'\n';
   }
   txt += '━━━━━━━━━━━━━━━━━━\n';
-  txt += 'Total: '+fmt(total)+' · '+rows.length+' disco(s) · '+Object.keys(txns).length+' venda(s)\n';
+  txt += 'Total vendido: '+fmt(total)+' · '+acerto.tot.discos+' disco(s) · '+Object.keys(txns).length+' venda(s)\n';
+  if (acerto.tot.especiais) txt += 'Troca/cortesia: '+acerto.tot.especiais+' disco(s) (valor de tabela '+fmt(acerto.tot.refEspeciais)+') — fora do total vendido\n';
   if (descTot > 0) txt += 'Descontos dados: '+fmt(descTot)+'\n';
   var mg = margemEstimada(rows);
   if (mg !== null) txt += 'Margem estimada: '+fmt(mg)+'\n';
@@ -2095,7 +2225,22 @@ function gerarTextoFechamento(rows, dia, detalhado, evento) {
   });
 
   txt += '\n💳 TOTAL POR PAGAMENTO:\n';
-  Object.keys(pgtosDia).forEach(function(k){ txt += '  '+k+': '+fmt(pgtosDia[k])+'\n'; });
+  Object.keys(pgtosDia).forEach(function(k){ txt += '  '+k+(ehPgtoEspecial(k)?' (só comissão)':'')+': '+fmt(pgtosDia[k])+'\n'; });
+
+  txt += '\n💸 ACERTO — REPASSE PRA MIM\n';
+  txt += '(cartão débito/crédito/parcelado −'+TAXA_CARTAO_ACERTO+'% de taxa · Pix e dinheiro sem taxa · troca/cortesia = comissão lançada)\n';
+  acerto.ordem.forEach(function(o) {
+    var a = acerto.grupos[o];
+    txt += '\n'+String(o).toUpperCase()+' — '+a.regra+'\n';
+    ordenarPor(Object.keys(a.pgtos), ORDEM_PGTOS).forEach(function(k) {
+      var p = a.pgtos[k];
+      txt += '  '+k+': '+fmt(p.bruto)+(p.taxa ? ' − taxa '+fmt(p.taxa)+' = '+fmt(p.liq) : '')+' → '+(p.pct===null?'sem regra':fmt(p.repasse))+'\n';
+    });
+    txt += '  Repasse '+o+': '+fmt(a.repasse)+'\n';
+  });
+  txt += '\nTOTAL DISCOS VENDIDOS: '+fmt(acerto.tot.vendido)+' ('+acerto.tot.discos+' disco'+(acerto.tot.discos!==1?'s':'')+')\n';
+  txt += 'TOTAL A REPASSAR PRA MIM: '+fmt(acerto.tot.repasse)+'\n';
+  if (acerto.tot.semRegra.length) txt += '⚠️ Sem regra de repasse (não entrou): '+acerto.tot.semRegra.join(', ')+'\n';
   if (!evento) {
     var pe = gruposPorEvento(rows);
     if (pe.ordem.length) {
@@ -2200,6 +2345,139 @@ async function salvarFechamento() {
     showAle('aC','ae','Erro ao salvar fechamento: '+e.message);
   }
 }
+// ── PLANILHA EXCEL DO FECHAMENTO ──
+// Biblioteca só é baixada quando aperta o botão (não pesa no PDV durante a feira)
+function carregarXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise(function(ok, falha) {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = function(){ ok(); };
+    s.onerror = function(){ falha(new Error('Sem internet pra gerar a planilha — tente de novo com rede.')); };
+    document.head.appendChild(s);
+  });
+}
+// "Artista — Álbum (VNL-224)" → partes. PNC: título = artista/descrição, sem VNL.
+function partesDoTitulo(v) {
+  var t = String(v.titulo || '').replace(/^⏳ /, '');
+  var m = /^(.*?)(?: — (.*?))? \((VNL-\d+)\)$/.exec(t);
+  var pnc = /(?:^| \| )PNC(?: — (.*?))?(?= \| |$)/.exec(v.obs || '');
+  if (m) return { vnl: m[3], artista: m[1], album: m[2] || '', pnc: false };
+  return { vnl: '', artista: t, album: pnc && pnc[1] ? pnc[1] : '', pnc: !!pnc };
+}
+function obsSistema(v) {
+  return String(v.obs || '').replace(/(?:^| \| )Obs: [\s\S]*$/, '').trim();
+}
+function folhaComFormato(aoa, colsDinheiro, larguras) {
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var rng = XLSX.utils.decode_range(ws['!ref']);
+  for (var R = rng.s.r; R <= rng.e.r; R++) {
+    for (var C = rng.s.c; C <= rng.e.c; C++) {
+      var cel = ws[XLSX.utils.encode_cell({ r:R, c:C })];
+      if (cel && cel.t === 'n' && colsDinheiro.indexOf(C) >= 0) cel.z = '"R$" #,##0.00';
+    }
+  }
+  ws['!cols'] = larguras.map(function(w){ return { wch: w }; });
+  return ws;
+}
+
+async function exportarExcel() {
+  var rows = ultimasRows;
+  if (!rows.length) { showAle('aC','ae','Nada pra exportar ainda.'); return; }
+  var btn = document.getElementById('btnExcel');
+  var rotulo = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Gerando planilha…';
+  try {
+    await carregarXLSX();
+    var evento = resumoModo === 'evento' ? document.getElementById('resumoEvento').value : '';
+    var dia = document.getElementById('resumoData').value || hojeLocal();
+    var periodo = evento ? (periodoDasRows(rows) || dataBr(dia)) : dataBr(dia);
+    var ac = calcAcerto(rows);
+    var R = arred2;
+
+    // ── Aba 1: Resumo / acerto ──
+    var res = [];
+    res.push([evento ? 'FECHAMENTO — '+String(evento).toUpperCase() : 'FECHAMENTO FEIRA — '+periodo]);
+    res.push(['Período', periodo]);
+    res.push(['Regras', 'Cartão (débito, crédito, parcelado): −'+TAXA_CARTAO_ACERTO+'% de taxa antes da divisão · Pix e Dinheiro: sem taxa (100%) · Troca/Cortesia: entra só a comissão lançada (100% sua)']);
+    res.push(['', 'Sociedade 50% · Pai 10% · Pai + Felipe 20% (10% Pai + 10% Felipe) · Meu 100%']);
+    res.push([]);
+    res.push(['Lote / forma de pagamento', 'Qtd', 'Vendido', 'Taxa cartão', 'Líquido', 'Regra', 'Repasse pra mim']);
+    ac.ordem.forEach(function(o) {
+      var g = ac.grupos[o];
+      res.push(['▶ '+String(o).toUpperCase()+' ('+g.discos+' disco'+(g.discos!==1?'s':'')+(g.especiais?' + '+g.especiais+' troca/cortesia':'')+')', '', '', '', '', g.regra, '']);
+      ordenarPor(Object.keys(g.pgtos), ORDEM_PGTOS).forEach(function(k) {
+        var p = g.pgtos[k];
+        var esp = ehPgtoEspecial(k);
+        res.push(['    '+k+(esp?' (só comissão)':''), p.qtd, R(p.bruto), R(p.taxa), R(p.liq),
+          p.pct === null ? '⚠️ sem regra' : p.pct+'%', R(p.repasse)]);
+      });
+      res.push(['    Total '+o, g.discos, R(g.vendido), R(g.taxa), R(g.liq), '', R(g.repasse)]);
+      res.push([]);
+    });
+    res.push(['TOTAL GERAL (discos vendidos)', ac.tot.discos, R(ac.tot.vendido), R(ac.tot.taxa), R(ac.tot.liq), '', R(ac.tot.repasse)]);
+    if (ac.tot.especiais) res.push(['Troca/cortesia (fora do vendido)', ac.tot.especiais, R(ac.tot.refEspeciais), '', '', 'valor de tabela', '']);
+    res.push([]);
+    res.push(['💸 TOTAL A REPASSAR PRA MIM', '', '', '', '', '', R(ac.tot.repasse)]);
+    if (ac.tot.semRegra.length) res.push(['⚠️ Sem regra de repasse (não entrou no total): '+ac.tot.semRegra.join(', ')]);
+
+    // Total por forma de pagamento (conferência do caixa)
+    var porPg = {};
+    rows.forEach(function(v){ linhasAcerto(v).forEach(function(l){
+      var p = porPg[l.pgto] || (porPg[l.pgto] = { bruto:0, taxa:0, liq:0 });
+      p.bruto += l.bruto; p.taxa += l.taxa; p.liq += l.liq;
+    }); });
+    res.push([]);
+    res.push(['Conferência por forma de pagamento', '', 'Recebido', 'Taxa cartão', 'Líquido']);
+    ordenarPor(Object.keys(porPg), ORDEM_PGTOS).forEach(function(k) {
+      res.push(['    '+k+(ehPgtoEspecial(k)?' (só comissão)':''), '', R(porPg[k].bruto), R(porPg[k].taxa), R(porPg[k].liq)]);
+    });
+
+    // ── Aba 2: todas as vendas, linha a linha ──
+    var cab = ['Data','Evento','Venda (carrinho)','Tipo','VNL','Artista','Álbum / descrição','Origem','Pagamento','Parcelas',
+      'Pagamento 2','Valor pag. 2','Preço de tabela','Desconto','Valor recebido','Taxa cartão','Líquido','% repasse','Repasse pra mim','Comprador','Observação','Detalhes do sistema'];
+    var vendas = [cab];
+    rows.slice().sort(function(a,b){ return (a.dia||'').localeCompare(b.dia||'') || String(a.txn).localeCompare(String(b.txn)); })
+      .forEach(function(v) {
+        var pt = partesDoTitulo(v);
+        var ls = linhasAcerto(v);
+        var taxa = 0, liq = 0, rep = 0;
+        ls.forEach(function(l){ taxa += l.taxa; liq += l.liq; rep += l.repasse; });
+        var tipo = ehEspecialRow(v) ? v.pgto : (pt.pnc ? 'PNC (sem cadastro)' : 'Venda');
+        var pct = ls.length ? ls[0].pct : null;
+        vendas.push([
+          dataBr(v.dia), v.evento || '', v.txn, tipo, pt.vnl, pt.artista, pt.album, v.origem, nomePgto(v.pgto),
+          v.parcelas > 1 ? v.parcelas : '', v.pgto2 ? nomePgto(v.pgto2) : '', v.valor2 > 0 ? R(v.valor2) : '',
+          v.bruto ? R(v.bruto) : '', v.desconto ? R(v.desconto) : '', R(v.valor), R(taxa), R(liq),
+          pct === null ? 'sem regra' : pct+'%', R(rep), v.comprador || '', obsDaRow(v), obsSistema(v)
+        ]);
+      });
+
+    // ── Aba 3: observações por venda ──
+    var obsAoa = [['Venda (carrinho)', 'Discos', 'Observação']];
+    var vistos = {};
+    rows.forEach(function(v) {
+      var o = obsDaRow(v);
+      if (!o || vistos[v.txn]) return;
+      vistos[v.txn] = true;
+      obsAoa.push([v.txn, rows.filter(function(r){ return r.txn === v.txn; }).map(function(r){ return r.titulo; }).join(' + '), o]);
+    });
+    if (obsAoa.length === 1) obsAoa.push(['', '', 'Nenhuma observação neste fechamento.']);
+
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, folhaComFormato(res, [2,3,4,6], [44,6,14,13,14,30,16]), 'Resumo e acerto');
+    XLSX.utils.book_append_sheet(wb, folhaComFormato(vendas, [11,12,13,14,15,16,18], [11,16,17,16,9,26,28,13,11,8,11,11,12,10,12,11,11,9,13,18,40,50]), 'Vendas');
+    XLSX.utils.book_append_sheet(wb, folhaComFormato(obsAoa, [], [17,50,60]), 'Observações');
+    var nomeArq = 'Fechamento - '+(evento ? evento : periodo.replace(/\//g,'-'))+'.xlsx';
+    XLSX.writeFile(wb, nomeArq.replace(/[\\/:*?"<>|]/g, '-'));
+    btn.textContent = '✓ Planilha baixada!';
+    setTimeout(function(){ btn.textContent = rotulo; btn.disabled = false; }, 2500);
+  } catch (e) {
+    btn.textContent = rotulo; btn.disabled = false;
+    showAle('aC','ae','Erro ao gerar planilha: '+e.message);
+  }
+}
+
 function copiaFallback(txt) {
   var ta = document.createElement('textarea');
   ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
@@ -2249,9 +2527,10 @@ function renderFechamento(rows) {
     if (!grupos[v.origem]) grupos[v.origem] = { discos: [], pgtos: {}, total: 0 };
     var g = grupos[v.origem];
     g.discos.push(v);
-    g.total += v.valor;
+    if (!ehEspecialRow(v)) g.total += v.valor;
     pagamentosDaRow(v).forEach(function(pp){ g.pgtos[pp.pgto] = (g.pgtos[pp.pgto] || 0) + pp.valor; });
   });
+  var acerto = calcAcerto(rows);
 
   var ordemOrigem = ['Sociedade','Pai','Pai + Felipe','Meu','Consignado','Parceiro','—'].filter(function(o){ return grupos[o]; });
   Object.keys(grupos).forEach(function(o){ if (ordemOrigem.indexOf(o)===-1) ordemOrigem.push(o); });
@@ -2260,6 +2539,7 @@ function renderFechamento(rows) {
   var abrir = rows.length <= 15 ? ' open' : ''; // dia pequeno: já vem aberto; dia grande: recolhido
   ordemOrigem.forEach(function(origem) {
     var g = grupos[origem];
+    var ac = acerto.grupos[origem];
     html += '<details class="fech-det"'+abrir+'><summary>'+
       '<span class="fech-sum-left"><span class="fech-arrow">▶</span><span class="badge badge-pu" style="margin:0">'+esc(origem)+'</span>'+
       '<span class="fech-qtd">'+g.discos.length+' disco'+(g.discos.length>1?'s':'')+'</span></span>'+
@@ -2271,10 +2551,21 @@ function renderFechamento(rows) {
         '<span class="fech-disco-val">'+fmt(v.valor)+'<div class="fech-disco-pg">'+esc(pgLabel)+'</div></span></div>';
     });
     Object.keys(g.pgtos).forEach(function(pg) {
-      html += '<div class="fech-subtot"><span>'+esc(pg)+'</span><span>'+fmt(g.pgtos[pg])+'</span></div>';
+      html += '<div class="fech-subtot"><span>'+esc(pg)+(ehPgtoEspecial(pg)?' (só comissão)':'')+'</span><span>'+fmt(g.pgtos[pg])+'</span></div>';
     });
+    if (ac) html += '<div class="fech-subtot" style="color:var(--gr)"><span>💸 Seu repasse — '+esc(ac.regra)+'</span><span>'+fmt(ac.repasse)+'</span></div>';
     html += '</div></details>';
   });
+
+  // Acerto: quanto o Pai te repassa (cartão já com a taxa, Pix/dinheiro 100%)
+  html += '<div style="margin-top:12px"><div class="cl" style="margin-bottom:4px">💸 Acerto — repasse pra você (cartão −'+TAXA_CARTAO_ACERTO+'%)</div>';
+  acerto.ordem.forEach(function(o) {
+    var a = acerto.grupos[o];
+    html += '<div class="row"><span class="rk">'+esc(o)+'<div style="font-size:11px;color:var(--tx3)">líquido '+fmt(a.liq)+' · '+esc(a.regra)+(a.especiais ? ' · '+a.especiais+' troca/cortesia' : '')+'</div></span><span class="rv">'+fmt(a.repasse)+'</span></div>';
+  });
+  html += '<div class="row"><span class="rk"><strong>TOTAL A REPASSAR PRA VOCÊ</strong></span><span class="rv" style="color:var(--gr)"><strong>'+fmt(acerto.tot.repasse)+'</strong></span></div>';
+  if (acerto.tot.semRegra.length) html += '<div style="font-size:11px;color:var(--ye);margin-top:4px">⚠️ Sem regra de repasse: '+esc(acerto.tot.semRegra.join(', '))+' — não entrou no total.</div>';
+  html += '</div>';
 
   // Totais do dia por forma de pagamento (já considerando divisões)
   var pgtosDia = {};
